@@ -9,14 +9,10 @@ export interface AppContextType {
   updateFilters: (partial: Partial<UserFilters>) => void;
   selectedOutfitId: string | null;
   setSelectedOutfitId: (id: string | null) => void;
-  selectedAccessoryIds: string[];
-  setSelectedAccessoryIds: React.Dispatch<React.SetStateAction<string[]>>;
-  toggleAccessoryId: (id: string) => void;
   personImageDataUrl: string | null;
   setPersonImageDataUrl: (dataUrl: string | null) => void;
   history: GeneratedImage[];
   addGeneratedImage: (img: GeneratedImage) => void;
-  clearHistory: () => void;
   generationCount: number;
   incrementGenerationCount: () => void;
   resetSession: () => void;
@@ -31,7 +27,6 @@ export const initialFilters: UserFilters = {
   styles: [],
   colors: [],
   garmentType: null,
-  accessoryIds: [],
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -40,7 +35,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [screen, setScreen] = useState<Screen>("home");
   const [filters, setFilters] = useState<UserFilters>(initialFilters);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
-  const [selectedAccessoryIds, setSelectedAccessoryIds] = useState<string[]>([]);
   const [personImageDataUrl, setPersonImageDataUrl] = useState<string | null>(null);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [generationCount, setGenerationCount] = useState<number>(0);
@@ -54,18 +48,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFilters((prev) => ({ ...prev, ...partial }));
   };
 
-  const toggleAccessoryId = (id: string) => {
-    setSelectedAccessoryIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
   const addGeneratedImage = (img: GeneratedImage) => {
     setHistory((prev) => [...prev, img]);
-  };
-
-  const clearHistory = () => {
-    setHistory([]);
   };
 
   const incrementGenerationCount = () => {
@@ -75,7 +59,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetSession = () => {
     setFilters(initialFilters);
     setSelectedOutfitId(null);
-    setSelectedAccessoryIds([]);
     setPersonImageDataUrl(null);
     setHistory([]);
     setGenerationCount(0);
@@ -92,14 +75,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateFilters,
         selectedOutfitId,
         setSelectedOutfitId,
-        selectedAccessoryIds,
-        setSelectedAccessoryIds,
-        toggleAccessoryId,
         personImageDataUrl,
         setPersonImageDataUrl,
         history,
         addGeneratedImage,
-        clearHistory,
         generationCount,
         incrementGenerationCount,
         resetSession,

@@ -1,19 +1,120 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-sans: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', Times, serif;
-  }
+/* Bảng màu "rạp chiếu đêm hội": nền tối ấm, đèn sân khấu đỏ son + vàng nghệ */
+@theme {
+  --color-kem: #0d0907;       /* nền trang */
+  --color-giay: #17100c;      /* nền thẻ */
+  --color-son: #d8453a;       /* đỏ son: màu chính */
+  --color-son-dam: #b83227;
+  --color-son-nhat: #3a1512;
+  --color-nghe: #e9b44c;      /* vàng nghệ: nhấn */
+  --color-nghe-nhat: #2c2111;
+  --color-ngoc: #2a8a80;      /* xanh ngọc: màu phụ */
+  --color-ngoc-nhat: #0f2a27;
+  --color-muc: #f5ebdd;       /* chữ chính */
+  --color-muc-nhat: #b4a391;  /* chữ phụ */
+  --color-vien: #34261d;      /* viền */
 
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+
+  --animate-marquee: marquee 60s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 6s linear infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+  }
+  @keyframes shimmer {
+    from { background-position: 0% 50%; }
+    to { background-position: 200% 50%; }
+  }
+}
+
+@layer base {
   body {
+    color: var(--color-muc);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
+    background-color: var(--color-kem);
+    /* ánh đèn sân khấu cố định phía sau mọi màn hình */
+    background-image:
+      radial-gradient(ellipse 60% 45% at 15% -5%, rgba(216, 69, 58, 0.22), transparent 70%),
+      radial-gradient(ellipse 55% 40% at 95% 10%, rgba(233, 180, 76, 0.14), transparent 70%),
+      radial-gradient(ellipse 70% 50% at 50% 110%, rgba(42, 138, 128, 0.12), transparent 70%);
+    background-attachment: fixed;
   }
 
-  h1, h2, h3, .font-serif {
-    font-family: var(--font-serif);
+  /* hạt film phủ toàn trang, không bắt sự kiện chuột */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    opacity: 0.06;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background: var(--color-son);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-nghe);
+    outline-offset: 2px;
+  }
+
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  /* chữ vàng ánh kim cho tiêu đề lớn */
+  .text-gold {
+    background: linear-gradient(100deg, #f7e2a8 0%, #e9b44c 30%, #fff3cf 50%, #e9b44c 70%, #f7e2a8 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-shimmer);
+  }
+
+  /* nền "đèn chiếu" cho ảnh trang phục tách nền, để đồ màu tối vẫn nổi trên nền tối */
+  .spotlight {
+    background: radial-gradient(ellipse 70% 60% at 50% 42%, #f3e6d2 0%, #d9c6ab 45%, #3a2a1f 100%);
+  }
+
+  /* thẻ kính mờ */
+  .glass {
+    background: rgba(28, 20, 15, 0.62);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

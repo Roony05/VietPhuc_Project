@@ -1,678 +1,232 @@
 import React, { useState } from "react";
 import { useApp } from "../state/AppContext";
+import { AgeRange, ColorTag, EventTag, GarmentType, Gender, StyleTag } from "../types";
 import {
-  Gender,
-  GarmentType,
-  EventTag,
-  StyleTag,
-  ColorTag,
-  AgeRange,
-} from "../types";
-import {
-  genderLabels,
-  garmentTypeLabels,
-  eventLabels,
-  styleLabels,
-  colorLabels,
   ageRangeLabels,
+  colorLabels,
+  eventLabels,
+  garmentTypeLabels,
+  genderLabels,
+  styleLabels,
+  filterSummary,
 } from "../data/labels";
-import { accessories } from "../data/accessories";
-import { ImageWithFallback } from "../components/ImageWithFallback";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Sliders,
-  Sparkles,
-  AlertCircle,
-  HelpCircle,
-} from "lucide-react";
+import { Button, Card, Chip, PageTitle } from "../components/ui";
+import { StudentAvatar, avatarLabel } from "../components/StudentAvatar";
+import { ArrowRight, ChevronDown } from "lucide-react";
+
+const GENDERS: Gender[] = ["nu", "nam"];
+const EVENTS: EventTag[] = ["tet", "ky_yeu", "le_tot_nghiep", "khai_giang", "le_hoi", "di_chua", "dao_pho", "chup_anh", "dam_cuoi"];
+const GARMENTS: GarmentType[] = ["ao_dai", "ao_dai_cach_tan", "ao_tu_than", "ao_ngu_than", "ao_ba_ba", "ao_tac"];
+const STYLES: StyleTag[] = ["truyen_thong", "toi_gian", "gen_z", "sang_trong"];
+const COLORS: ColorTag[] = ["do", "vang", "xanh_lam", "xanh_la", "hong_sen", "tim", "nau", "den", "trang", "be", "cam"];
+const AGES: AgeRange[] = ["duoi_16", "16_18", "19_22", "23_30", "tren_30"];
+
+const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
+
+/** Một nhóm lựa chọn có tiêu đề */
+const Group: React.FC<{ title: string; hint?: string; required?: boolean; children: React.ReactNode }> = ({
+  title,
+  hint,
+  required,
+  children,
+}) => (
+  <Card className="p-5 sm:p-6">
+    <div className="flex items-baseline justify-between gap-3 mb-4">
+      <h2 className="text-lg font-bold text-muc">
+        {title} {required && <span className="text-son">*</span>}
+      </h2>
+      {hint && <span className="text-xs text-muc-nhat">{hint}</span>}
+    </div>
+    {children}
+  </Card>
+);
 
 export const FilterScreen: React.FC = () => {
-  const { filters, setFilters, setSelectedAccessoryIds, goTo } = useApp();
+  const { filters, setFilters, goTo } = useApp();
 
-  // Khởi tạo state từ filters có sẵn trong context
-  const [selectedGender, setSelectedGender] = useState<Gender | null>(filters.gender);
-  const [selectedEvent, setSelectedEvent] = useState<EventTag | null>(filters.event);
-  const [selectedGarment, setSelectedGarment] = useState<GarmentType | null>(filters.garmentType);
-  const [selectedStyles, setSelectedStyles] = useState<StyleTag[]>(filters.styles || []);
-  const [selectedColors, setSelectedColors] = useState<ColorTag[]>(filters.colors || []);
-  const [selectedAccessories, setSelectedAccessories] = useState<string[]>(filters.accessoryIds || []);
-
-  // Khối thu gọn vóc dáng
-  const [isBodyInfoOpen, setIsBodyInfoOpen] = useState<boolean>(
-    Boolean(filters.ageRange || filters.heightCm || filters.weightKg)
-  );
+  const [gender, setGender] = useState<Gender | null>(filters.gender);
+  const [event, setEvent] = useState<EventTag | null>(filters.event);
+  const [garment, setGarment] = useState<GarmentType | null>(filters.garmentType);
+  const [styles, setStyles] = useState<StyleTag[]>(filters.styles);
+  const [colors, setColors] = useState<ColorTag[]>(filters.colors);
+  const [bodyOpen, setBodyOpen] = useState(Boolean(filters.ageRange || filters.heightCm || filters.weightKg));
   const [ageRange, setAgeRange] = useState<AgeRange | null>(filters.ageRange);
   const [heightCm, setHeightCm] = useState<number | null>(filters.heightCm);
   const [weightKg, setWeightKg] = useState<number | null>(filters.weightKg);
 
-  // Đổi giới tính -> cập nhật và dọn các phụ kiện không còn phù hợp
-  const handleGenderSelect = (gender: Gender) => {
-    setSelectedGender(gender);
-    // Lọc lại các phụ kiện đã chọn nếu nó chỉ dành riêng cho giới tính khác
-    setSelectedAccessories((prev) =>
-      prev.filter((id) => {
-        const item = accessories.find((a) => a.id === id);
-        if (!item) return false;
-        return item.gender === "unisex" || item.gender === gender;
-      })
-    );
+  const isValid = Boolean(gender && event);
+
+  const chooseGender = (g: Gender) => {
+    setGender(g);
   };
 
-  // Toggle phong cách (chọn nhiều)
-  const toggleStyle = (style: StyleTag) => {
-    setSelectedStyles((prev) =>
-      prev.includes(style) ? prev.filter((s) => s !== style) : [...prev, style]
-    );
-  };
-
-  // Toggle màu sắc (chọn nhiều)
-  const toggleColor = (color: ColorTag) => {
-    setSelectedColors((prev) =>
-      prev.includes(color) ? prev.filter((c) => c !== color) : [...prev, color]
-    );
-  };
-
-  // Toggle phụ kiện (chọn nhiều)
-  const toggleAccessory = (id: string) => {
-    setSelectedAccessories((prev) =>
-      prev.includes(id) ? prev.filter((accId) => accId !== id) : [...prev, id]
-    );
-  };
-
-  // Danh sách phụ kiện hiển thị theo giới tính đã chọn
-  // Nếu chưa chọn giới tính, tạm thời hiển thị toàn bộ hoặc hiển thị unisex kèm nhắc chọn giới tính
-  const visibleAccessories = accessories.filter((acc) => {
-    if (!selectedGender) return true;
-    return acc.gender === "unisex" || acc.gender === selectedGender;
-  });
-
-  // Kiểm tra điều kiện bắt buộc
-  const isValid = Boolean(selectedGender && selectedEvent);
-
-  const handleSubmit = () => {
+  const submit = () => {
     if (!isValid) return;
-
-    // Lưu toàn bộ vào context filters
-    setFilters({
-      gender: selectedGender,
-      event: selectedEvent,
-      garmentType: selectedGarment,
-      styles: selectedStyles,
-      colors: selectedColors,
-      accessoryIds: selectedAccessories,
-      ageRange,
-      heightCm,
-      weightKg,
-    });
-
-    // Gán selectedAccessoryIds = filters.accessoryIds
-    setSelectedAccessoryIds(selectedAccessories);
-
-    // Chuyển màn hình recommend
+    setFilters({ gender, event, garmentType: garment, styles, colors, ageRange, heightCm, weightKg });
     goTo("recommend");
   };
 
-  const availableGenders: Gender[] = ["nam", "nu"];
-  const availableEvents: EventTag[] = [
-    "tet",
-    "ky_yeu",
-    "le_tot_nghiep",
-    "khai_giang",
-    "le_hoi",
-    "di_chua",
-    "dao_pho",
-    "chup_anh",
-    "dam_cuoi",
-  ];
-  const availableGarments: GarmentType[] = [
-    "ao_dai",
-    "ao_dai_cach_tan",
-    "ao_tu_than",
-    "ao_ngu_than",
-    "ao_ba_ba",
-    "ao_tac",
-  ];
-  const availableStyles: StyleTag[] = [
-    "truyen_thong",
-    "toi_gian",
-    "gen_z",
-    "sang_trong",
-  ];
-  const availableColors: ColorTag[] = [
-    "trang",
-    "do",
-    "vang",
-    "xanh_lam",
-    "xanh_la",
-    "hong",
-    "tim",
-    "nau",
-    "den",
-    "be",
-  ];
-  const availableAges: AgeRange[] = [
-    "duoi_16",
-    "16_18",
-    "19_22",
-    "23_30",
-    "tren_30",
-  ];
+  const summary = filterSummary({ gender, event, garmentType: garment, styles, colors });
+
+  const numberInput = (value: number | null, set: (v: number | null) => void, placeholder: string) => (
+    <input
+      type="number"
+      inputMode="numeric"
+      value={value ?? ""}
+      onChange={(e) => set(e.target.value ? Number(e.target.value) : null)}
+      placeholder={placeholder}
+      className="w-full px-4 py-2.5 rounded-xl border border-vien bg-kem focus:outline-none focus:border-son"
+    />
+  );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-10">
-      {/* Header thanh điều hướng & giới thiệu */}
-      <div className="mb-8">
-        <button
-          onClick={() => goTo("home")}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-800 mb-3 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Về trang chủ</span>
-        </button>
+    <div className="max-w-6xl mx-auto px-4 py-10 pb-28 lg:pb-10">
+      <PageTitle
+        eyebrow="Bước 1 / 3"
+        title="Gu của bạn thế nào?"
+        description="Chọn dịp mặc và giới tính là đủ để bắt đầu. Các mục còn lại giúp gợi ý sát hơn."
+      />
 
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-100 text-[#991B1B] flex items-center justify-center shrink-0 shadow-xs">
-            <Sliders className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 font-serif">
-              Bộ lọc &amp; Gợi ý phối đồ
-            </h1>
-            <p className="text-xs sm:text-sm text-stone-500 mt-0.5">
-              Cung cấp các tiêu chí mong muốn để hệ thống đề xuất tối đa 3 bộ cổ phục chuẩn vibe nhất
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        {/* NHÓM 1: GIỚI TÍNH (BẮT BUỘC) */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-3.5">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-red-100 text-[#991B1B] text-xs font-bold flex items-center justify-center">
-                1
-              </span>
-              <h2 className="text-base font-bold text-stone-900 font-serif">
-                Giới tính
-              </h2>
-              <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                Bắt buộc
-              </span>
+      <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
+        <div className="space-y-4">
+          <Group title="Giới tính" required>
+            <div className="flex flex-wrap gap-2">
+              {GENDERS.map((g) => (
+                <Chip key={g} selected={gender === g} onClick={() => chooseGender(g)}>
+                  {genderLabels[g]}
+                </Chip>
+              ))}
             </div>
-            {!selectedGender && (
-              <span className="text-xs text-amber-600 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" /> Chưa chọn
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-stone-500 mb-4">
-            Chọn giới tính để định hình kiểu dáng trang phục và phụ kiện phù hợp:
-          </p>
+          </Group>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {availableGenders.map((g) => {
-              const isSelected = selectedGender === g;
-              return (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => handleGenderSelect(g)}
-                  className={`flex items-center justify-center gap-2.5 px-6 py-3 rounded-full text-sm font-semibold transition-all cursor-pointer border ${
-                    isSelected
-                      ? "bg-[#991B1B] text-white border-[#991B1B] shadow-sm ring-2 ring-red-200"
-                      : "bg-white text-stone-700 border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  {isSelected && <Check className="w-4 h-4 stroke-[2.5]" />}
-                  <span>{genderLabels[g]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* NHÓM 2: SỰ KIỆN (BẮT BUỘC) */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-3.5">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-red-100 text-[#991B1B] text-xs font-bold flex items-center justify-center">
-                2
-              </span>
-              <h2 className="text-base font-bold text-stone-900 font-serif">
-                Sự kiện tham dự
-              </h2>
-              <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                Bắt buộc
-              </span>
+          <Group title="Bạn mặc đi đâu?" required>
+            <div className="flex flex-wrap gap-2">
+              {EVENTS.map((e) => (
+                <Chip key={e} selected={event === e} onClick={() => setEvent(e)}>
+                  {eventLabels[e]}
+                </Chip>
+              ))}
             </div>
-            {!selectedEvent && (
-              <span className="text-xs text-amber-600 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" /> Chưa chọn
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-stone-500 mb-4">
-            Mỗi sự kiện có tính chất nghi lễ hoặc sự thoải mái riêng để phối trang phục đúng bối cảnh:
-          </p>
+          </Group>
 
-          <div className="flex flex-wrap gap-2.5">
-            {availableEvents.map((evt) => {
-              const isSelected = selectedEvent === evt;
-              return (
-                <button
-                  key={evt}
-                  type="button"
-                  onClick={() => setSelectedEvent(evt)}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer border ${
-                    isSelected
-                      ? "bg-[#991B1B] text-white border-[#991B1B] shadow-xs"
-                      : "bg-white text-stone-700 border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  {eventLabels[evt]}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+          <Group title="Loại trang phục" hint="Chọn một, hoặc để app gợi ý">
+            <div className="flex flex-wrap gap-2">
+              <Chip selected={garment === null} onClick={() => setGarment(null)}>
+                Để app gợi ý
+              </Chip>
+              {GARMENTS.map((g) => (
+                <Chip key={g} selected={garment === g} onClick={() => setGarment(g)}>
+                  {garmentTypeLabels[g]}
+                </Chip>
+              ))}
+            </div>
+          </Group>
 
-        {/* NHÓM 3: LOẠI TRANG PHỤC (KHÔNG BẮT BUỘC) */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center gap-2 mb-3.5">
-            <span className="w-6 h-6 rounded-full bg-stone-100 text-stone-700 text-xs font-bold flex items-center justify-center">
-              3
-            </span>
-            <h2 className="text-base font-bold text-stone-900 font-serif">
-              Loại trang phục
-            </h2>
-            <span className="text-xs text-stone-400">Tùy chọn</span>
-          </div>
-          <p className="text-xs text-stone-500 mb-4">
-            Bạn có thể chọn dáng trang phục mong muốn hoặc để hệ thống tự do đề xuất:
-          </p>
+          <Group title="Phong cách" hint="Chọn nhiều">
+            <div className="flex flex-wrap gap-2">
+              {STYLES.map((s) => (
+                <Chip key={s} selected={styles.includes(s)} onClick={() => setStyles(toggle(styles, s))}>
+                  {styleLabels[s]}
+                </Chip>
+              ))}
+            </div>
+          </Group>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-            <button
-              type="button"
-              onClick={() => setSelectedGarment(null)}
-              className={`p-3 rounded-xl text-xs sm:text-sm font-medium text-left border transition-all cursor-pointer ${
-                selectedGarment === null
-                  ? "bg-[#991B1B] text-white border-[#991B1B] shadow-xs"
-                  : "bg-white text-stone-700 border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-              }`}
-            >
-              <div className="font-semibold">Để app gợi ý</div>
-              <div
-                className={`text-[11px] mt-0.5 ${
-                  selectedGarment === null ? "text-red-100" : "text-stone-400"
-                }`}
-              >
-                Tối ưu theo tiêu chí
-              </div>
-            </button>
-
-            {availableGarments.map((g) => {
-              const isSelected = selectedGarment === g;
-              return (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setSelectedGarment(g)}
-                  className={`p-3 rounded-xl text-xs sm:text-sm font-medium text-left border transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-[#991B1B] text-white border-[#991B1B] shadow-xs"
-                      : "bg-white text-stone-700 border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  <div className="font-semibold">{garmentTypeLabels[g]}</div>
-                  <div
-                    className={`text-[11px] mt-0.5 ${
-                      isSelected ? "text-red-100" : "text-stone-400"
-                    }`}
-                  >
-                    Cổ phục Việt
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* NHÓM 4: PHONG CÁCH (CHỌN NHIỀU) */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center gap-2 mb-3.5">
-            <span className="w-6 h-6 rounded-full bg-stone-100 text-stone-700 text-xs font-bold flex items-center justify-center">
-              4
-            </span>
-            <h2 className="text-base font-bold text-stone-900 font-serif">
-              Phong cách
-            </h2>
-            <span className="text-xs text-stone-400">Chọn nhiều</span>
-          </div>
-          <p className="text-xs text-stone-500 mb-4">
-            Định hướng phong thái bạn hướng tới (có thể chọn kết hợp nhiều phong cách):
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {availableStyles.map((style) => {
-              const isSelected = selectedStyles.includes(style);
-              return (
-                <button
-                  key={style}
-                  type="button"
-                  onClick={() => toggleStyle(style)}
-                  className={`flex items-center justify-between p-3 rounded-xl text-xs sm:text-sm font-medium border transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-amber-50 text-amber-950 border-amber-400 shadow-xs"
-                      : "bg-white text-stone-700 border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  <span>{styleLabels[style]}</span>
-                  <div
-                    className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors ${
-                      isSelected
-                        ? "bg-amber-700 border-amber-700 text-white"
-                        : "border-stone-300 bg-white"
-                    }`}
-                  >
-                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* NHÓM 5: MÀU YÊU THÍCH (CHỌN NHIỀU, Ô TRÒN HEX + TÊN) */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center gap-2 mb-3.5">
-            <span className="w-6 h-6 rounded-full bg-stone-100 text-stone-700 text-xs font-bold flex items-center justify-center">
-              5
-            </span>
-            <h2 className="text-base font-bold text-stone-900 font-serif">
-              Màu yêu thích
-            </h2>
-            <span className="text-xs text-stone-400">Chọn nhiều</span>
-          </div>
-          <p className="text-xs text-stone-500 mb-4">
-            Lựa chọn những gam màu bạn muốn xuất hiện chủ đạo trên trang phục:
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {availableColors.map((c) => {
-              const isSelected = selectedColors.includes(c);
-              const info = colorLabels[c];
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => toggleColor(c)}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-stone-100 border-stone-400 ring-2 ring-stone-300 shadow-xs"
-                      : "bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
+          <Group title="Màu yêu thích" hint="Chọn nhiều">
+            <div className="flex flex-wrap gap-2">
+              {COLORS.map((c) => (
+                <Chip key={c} selected={colors.includes(c)} onClick={() => setColors(toggle(colors, c))}>
                   <span
-                    className="w-6 h-6 rounded-full shrink-0 shadow-inner flex items-center justify-center"
-                    style={{
-                      backgroundColor: info.hex,
-                      border: info.border ? `1px solid ${info.border}` : "1px solid rgba(0,0,0,0.12)",
-                    }}
-                  >
-                    {isSelected && (
-                      <Check
-                        className={`w-3.5 h-3.5 stroke-[3] ${
-                          c === "trang" || c === "be" || c === "vang"
-                            ? "text-stone-800"
-                            : "text-white"
-                        }`}
-                      />
-                    )}
-                  </span>
-                  <span className="text-xs font-medium text-stone-800 truncate">
-                    {info.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* NHÓM 6: PHỤ KIỆN MUỐN DÙNG */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-3.5">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-stone-100 text-stone-700 text-xs font-bold flex items-center justify-center">
-                6
-              </span>
-              <h2 className="text-base font-bold text-stone-900 font-serif">
-                Phụ kiện muốn dùng
-              </h2>
-              <span className="text-xs text-stone-400">Chọn nhiều</span>
+                    className="w-4 h-4 rounded-full border border-black/10"
+                    style={{ backgroundColor: colorLabels[c].hex }}
+                  />
+                  {colorLabels[c].label}
+                </Chip>
+              ))}
             </div>
-            {selectedGender && (
-              <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md">
-                Phù hợp cho: {genderLabels[selectedGender]} &amp; Unisex
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-stone-500 mb-4">
-            Chọn các món phụ kiện bạn dự định phối cùng. Chỉ hiển thị phụ kiện theo giới tính đã chọn:
-          </p>
+          </Group>
 
-          {!selectedGender && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs text-amber-800">
-              <HelpCircle className="w-4 h-4 shrink-0 text-amber-600" />
-              <span>
-                Vui lòng chọn <strong>Giới tính</strong> ở bước 1 để hiển thị danh sách phụ kiện chính xác nhất.
-              </span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {visibleAccessories.map((acc) => {
-              const isSelected = selectedAccessories.includes(acc.id);
-              return (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => toggleAccessory(acc.id)}
-                  className={`flex flex-col p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
-                    isSelected
-                      ? "bg-red-50/60 border-[#991B1B] ring-2 ring-red-200 shadow-xs"
-                      : "bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  <div className="w-full aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 relative">
-                    <ImageWithFallback
-                      src={acc.image}
-                      alt={acc.name}
-                      fallbackTitle={acc.name}
-                      className="w-full h-full object-contain p-2"
-                    />
-                    <div
-                      className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-md border flex items-center justify-center transition-colors shadow-xs ${
-                        isSelected
-                          ? "bg-[#991B1B] border-[#991B1B] text-white"
-                          : "border-stone-300 bg-white/90 text-transparent"
-                      }`}
+          <Card className="p-5 sm:p-6">
+            <button
+              type="button"
+              onClick={() => setBodyOpen(!bodyOpen)}
+              className="w-full flex items-center justify-between cursor-pointer"
+              aria-expanded={bodyOpen}
+            >
+              <h2 className="text-lg font-bold text-muc">Vóc dáng (không bắt buộc)</h2>
+              <ChevronDown className={`w-5 h-5 text-muc-nhat transition-transform ${bodyOpen ? "rotate-180" : ""}`} />
+            </button>
+            {bodyOpen && (
+              <div className="mt-4 space-y-4">
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <label className="text-sm text-muc-nhat space-y-1.5">
+                    <span>Độ tuổi</span>
+                    <select
+                      value={ageRange ?? ""}
+                      onChange={(e) => setAgeRange((e.target.value || null) as AgeRange | null)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-vien bg-kem text-muc focus:outline-none focus:border-son"
                     >
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    </div>
-                  </div>
-                  <div className="text-xs font-semibold text-stone-800 truncate">
-                    {acc.name}
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5">
-                    {acc.gender === "unisex" ? "Unisex" : genderLabels[acc.gender]}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* NHÓM 7: KHỐI THU GỌN - THÔNG TIN VÓC DÁNG (KHÔNG BẮT BUỘC) */}
-        <section className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 shadow-xs transition-all">
-          <button
-            type="button"
-            onClick={() => setIsBodyInfoOpen(!isBodyInfoOpen)}
-            className="w-full flex items-center justify-between text-left cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-stone-100 text-stone-700 text-xs font-bold flex items-center justify-center">
-                7
-              </span>
-              <h2 className="text-base font-bold text-stone-900 font-serif">
-                Thông tin vóc dáng
-              </h2>
-              <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
-                Không bắt buộc
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-800 font-medium">
-              <span>{isBodyInfoOpen ? "Thu gọn" : "Mở rộng"}</span>
-              {isBodyInfoOpen ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </div>
-          </button>
-
-          {isBodyInfoOpen && (
-            <div className="mt-5 pt-4 border-t border-stone-200 space-y-4">
-              {/* Độ tuổi */}
-              <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-2">
-                  Độ tuổi:
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {availableAges.map((age) => {
-                    const isSelected = ageRange === age;
-                    return (
-                      <button
-                        key={age}
-                        type="button"
-                        onClick={() => setAgeRange(isSelected ? null : age)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                          isSelected
-                            ? "bg-stone-800 text-white border-stone-800"
-                            : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50"
-                        }`}
-                      >
-                        {ageRangeLabels[age]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Chiều cao & Cân nặng */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                    Chiều cao (cm):
+                      <option value="">Không chọn</option>
+                      {AGES.map((a) => (
+                        <option key={a} value={a}>
+                          {ageRangeLabels[a]}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={100}
-                      max={220}
-                      value={heightCm ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                        setHeightCm(isNaN(val as number) ? null : val);
-                      }}
-                      placeholder="Ví dụ: 165"
-                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#991B1B]/30 focus:border-[#991B1B]"
-                    />
-                    <span className="absolute right-3.5 top-2.5 text-xs text-stone-400 font-medium">
-                      cm
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                    Cân nặng (kg):
+                  <label className="text-sm text-muc-nhat space-y-1.5">
+                    <span>Chiều cao (cm)</span>
+                    {numberInput(heightCm, setHeightCm, "VD: 160")}
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={30}
-                      max={150}
-                      value={weightKg ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                        setWeightKg(isNaN(val as number) ? null : val);
-                      }}
-                      placeholder="Ví dụ: 52"
-                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#991B1B]/30 focus:border-[#991B1B]"
-                    />
-                    <span className="absolute right-3.5 top-2.5 text-xs text-stone-400 font-medium">
-                      kg
-                    </span>
-                  </div>
+                  <label className="text-sm text-muc-nhat space-y-1.5">
+                    <span>Cân nặng (kg)</span>
+                    {numberInput(weightKg, setWeightKg, "VD: 50")}
+                  </label>
                 </div>
+                <p className="text-xs text-muc-nhat">Chỉ dùng để gợi ý bằng chữ, không dùng để chỉnh ảnh của bạn.</p>
               </div>
+            )}
+          </Card>
+        </div>
 
-              {/* Dòng ghi chú nhỏ bảo mật / vóc dáng */}
-              <p className="text-[11px] text-stone-500 italic pt-1">
-                * Chỉ dùng để gợi ý bằng chữ, không dùng để chỉnh ảnh của bạn.
-              </p>
-            </div>
-          )}
-        </section>
+        {/* Tóm tắt: dính bên phải trên màn rộng */}
+        <aside className="hidden lg:block sticky top-24">
+          <Card className="p-6">
+            <h2 className="text-lg font-bold text-muc mb-4">Lựa chọn của bạn</h2>
+            {(gender === "nam" || gender === "nu") && (
+              <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl bg-kem">
+                <StudentAvatar gender={gender} age={ageRange} className="w-16 h-20 shrink-0" />
+                <p className="text-sm text-muc-nhat">
+                  Đây là bạn nè: <span className="font-semibold text-muc">{avatarLabel(gender, ageRange)}</span>
+                  {!ageRange && <span className="block text-xs mt-0.5">Chọn độ tuổi ở mục Vóc dáng để đổi nhân vật</span>}
+                </p>
+              </div>
+            )}
+            {summary.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {summary.map((s) => (
+                  <span key={s} className="px-3 py-1 rounded-full bg-kem border border-vien text-sm text-muc">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muc-nhat mb-5">Chưa chọn gì.</p>
+            )}
+            {!isValid && <p className="text-xs text-son mb-3">Cần chọn Giới tính và Dịp mặc.</p>}
+            <Button className="w-full" size="lg" disabled={!isValid} onClick={submit}>
+              Xem gợi ý <ArrowRight className="w-5 h-5" />
+            </Button>
+          </Card>
+        </aside>
       </div>
 
-      {/* KHỐI NÚT HOÀN TẤT & NHẮC CHỌN */}
-      <div className="mt-8 pt-6 border-t border-stone-200">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-stone-500 text-center sm:text-left">
-            {!isValid ? (
-              <span className="text-amber-700 font-medium flex items-center justify-center sm:justify-start gap-1.5">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                Vui lòng chọn đủ <strong>Giới tính</strong> và <strong>Sự kiện</strong> để tiếp tục
-              </span>
-            ) : (
-              <span className="text-emerald-700 font-medium flex items-center justify-center sm:justify-start gap-1.5">
-                <Check className="w-4 h-4 shrink-0" />
-                Đã sẵn sàng tạo đề xuất trang phục cá nhân hóa
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => goTo("home")}
-              className="w-1/2 sm:w-auto px-5 py-3 rounded-xl border border-stone-300 text-stone-700 text-sm font-medium hover:bg-stone-50 transition-colors cursor-pointer text-center"
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              disabled={!isValid}
-              onClick={handleSubmit}
-              className={`w-1/2 sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm ${
-                isValid
-                  ? "bg-[#991B1B] text-white hover:bg-red-800 cursor-pointer shadow-md shadow-red-900/10 active:scale-[0.99]"
-                  : "bg-stone-200 text-stone-400 cursor-not-allowed opacity-75"
-              }`}
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Xem gợi ý</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      {/* Nút dính dưới đáy trên điện thoại */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-kem/95 backdrop-blur border-t border-vien p-4">
+        {!isValid && <p className="text-xs text-son text-center mb-2">Cần chọn Giới tính và Dịp mặc.</p>}
+        <Button className="w-full" size="lg" disabled={!isValid} onClick={submit}>
+          Xem gợi ý <ArrowRight className="w-5 h-5" />
+        </Button>
       </div>
     </div>
   );

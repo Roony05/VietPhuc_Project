@@ -1,11 +1,9 @@
 import {
-  AccessoryType,
   AgeRange,
   ColorTag,
   EventTag,
   GarmentType,
   Gender,
-  RuleLevel,
   StyleTag,
 } from "../types";
 
@@ -56,17 +54,12 @@ export const colorLabels: Record<ColorTag, ColorInfo> = {
   xanh_lam: { label: "Xanh lam", hex: "#2563EB" },
   xanh_la: { label: "Xanh lá", hex: "#16A34A" },
   hong: { label: "Hồng", hex: "#EC4899" },
+  hong_sen: { label: "Hồng sen", hex: "#D63379" },
   tim: { label: "Tím", hex: "#9333EA" },
   nau: { label: "Nâu", hex: "#78350F" },
   den: { label: "Đen", hex: "#18181B" },
   be: { label: "Be", hex: "#E7D8C9" },
-};
-
-export const ruleLevelLabels: Record<RuleLevel, string> = {
-  hop_truyen_thong: "Hợp truyền thống",
-  remix_duoc: "Remix được",
-  nen_tranh: "Nên tránh",
-  chua_co_du_lieu: "Chưa có dữ liệu",
+  cam: { label: "Cam", hex: "#EA580C" },
 };
 
 export const ageRangeLabels: Record<AgeRange, string> = {
@@ -77,11 +70,20 @@ export const ageRangeLabels: Record<AgeRange, string> = {
   tren_30: "Trên 30 tuổi",
 };
 
-export const accessoryTypeLabels: Record<AccessoryType, string> = {
-  dau: "Phụ kiện đầu",
-  tay: "Cầm tay / Cổ tay",
-  chan: "Giày dép",
-  tui: "Túi xách",
-  trang_suc: "Trang sức",
-  mat: "Kính mắt",
-};
+
+/** Danh sách nhãn tiếng Việt của các lựa chọn, dùng để hiện chip tóm tắt */
+export function filterSummary(f: {
+  gender: Gender | null;
+  event: EventTag | null;
+  garmentType: GarmentType | null;
+  styles: StyleTag[];
+  colors: ColorTag[];
+}): string[] {
+  return [
+    f.gender && genderLabels[f.gender],
+    f.event && eventLabels[f.event],
+    f.garmentType && garmentTypeLabels[f.garmentType],
+    ...f.styles.map((s) => styleLabels[s]),
+    ...f.colors.map((c) => colorLabels[c].label),
+  ].filter(Boolean) as string[];
+}

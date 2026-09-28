@@ -1,219 +1,66 @@
 import React from "react";
-import { EventTag, Outfit } from "../types";
-import { accessories } from "../data/accessories";
-import { getAccessoryLevel } from "../logic/accessoryRules";
-import { StylingTips } from "../services/geminiText";
-import {
-  BookOpen,
-  CheckCircle2,
-  Sparkles,
-  AlertTriangle,
-  ShieldAlert,
-  Lightbulb,
-} from "lucide-react";
+import { AgeRange, Outfit } from "../types";
+import { PersonalityTip } from "../services/geminiText";
+import { StudentAvatar } from "./StudentAvatar";
+import { Sparkles } from "lucide-react";
 
 interface CultureCardProps {
   outfit: Outfit;
-  event: EventTag | null;
-  selectedAccessoryIds?: string[];
-  aiTips?: StylingTips | null;
+  aiTips?: PersonalityTip | null;
   aiTipsLoading?: boolean;
+  avatarGender?: "nam" | "nu" | null;
+  avatarAge?: AgeRange | null;
 }
 
+/** Thẻ văn hóa: ý nghĩa lấy từ dữ liệu của đội; "bí mật tính cách" vui do Gemini viết */
 export const CultureCard: React.FC<CultureCardProps> = ({
   outfit,
-  event,
-  selectedAccessoryIds = [],
   aiTips,
   aiTipsLoading = false,
+  avatarGender,
+  avatarAge,
 }) => {
-  // Lọc toàn bộ phụ kiện cùng giới tính (hoặc unisex) để đánh giá quy tắc
-  const relevantAccessories = accessories.filter(
-    (acc) => acc.gender === "unisex" || acc.gender === outfit.gender
-  );
-
-  // Phân loại phụ kiện theo getAccessoryLevel (dữ liệu 100% từ code/data, không dùng AI)
-  const hopTruyenThongList: { name: string; reason: string }[] = [];
-  const remixDuocList: { name: string; reason: string }[] = [];
-  const nenTranhList: { name: string; reason: string }[] = [];
-
-  relevantAccessories.forEach((acc) => {
-    const { level, reason } = getAccessoryLevel(outfit.garmentType, acc.id, event);
-    if (level === "hop_truyen_thong") {
-      hopTruyenThongList.push({ name: acc.name, reason });
-    } else if (level === "remix_duoc") {
-      remixDuocList.push({ name: acc.name, reason });
-    } else if (level === "nen_tranh") {
-      nenTranhList.push({ name: acc.name, reason });
-    }
-  });
-
-  const meaningText =
-    outfit.meaning && outfit.meaning !== "CẦN BỔ SUNG"
-      ? outfit.meaning
-      : "Thông tin đang được đội cập nhật.";
-
-  const hasMeaningSource =
-    Boolean(outfit.meaningSource) && outfit.meaningSource !== "CẦN BỔ SUNG";
+  const hasMeaning = outfit.meaning && outfit.meaning !== "CẦN BỔ SUNG";
+  const hasSource = outfit.meaningSource && outfit.meaningSource !== "CẦN BỔ SUNG";
 
   return (
-    <div className="bg-[#FFFDF9] border border-[#E7DECD] rounded-2xl p-5 sm:p-6 space-y-6 shadow-xs">
-      {/* Tiêu đề Thẻ văn hóa */}
-      <div className="flex items-center justify-between border-b border-[#E7DECD] pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-red-100 text-[#991B1B] flex items-center justify-center shrink-0">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-stone-900 font-serif">
-              Thẻ văn hóa &amp; Quy ước phối đồ
-            </h3>
-            <p className="text-[11px] text-stone-500">
-              Kiến thức trang phục truyền thống &amp; gợi ý phối đúng tinh thần
-            </p>
-          </div>
-        </div>
+    <div className="glass border border-white/8 rounded-3xl p-6 sm:p-7 shadow-xl shadow-black/30">
+      <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-nghe">
+        <span className="w-8 h-px bg-nghe" /> Thẻ văn hóa
+      </p>
+      <h3 className="text-2xl font-bold text-muc mt-2">Câu chuyện tà áo</h3>
 
-        {/* Nhãn kiểm duyệt văn hóa */}
-        {!outfit.verified && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full shrink-0">
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-            <span>Chưa được kiểm duyệt</span>
-          </span>
-        )}
-      </div>
+      <blockquote className="mt-4 pl-4 border-l-2 border-nghe/60 text-[15px] leading-relaxed text-muc/90">
+        {hasMeaning ? outfit.meaning : "Thông tin đang được đội cập nhật."}
+      </blockquote>
+      {hasSource && <p className="text-xs text-muc-nhat italic mt-2 pl-4">Nguồn: {outfit.meaningSource}</p>}
 
-      {/* 1. Ý NGHĨA TRANG PHỤC */}
-      <div>
-        <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider mb-2">
-          Ý nghĩa trang phục
-        </h4>
-        <div className="p-3.5 rounded-xl bg-stone-50/70 border border-stone-200/80 text-stone-700 text-xs sm:text-sm leading-relaxed">
-          <p>{meaningText}</p>
-          {hasMeaningSource && (
-            <p className="text-[11px] text-stone-400 mt-2 italic">
-              Nguồn tham khảo: {outfit.meaningSource}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* 2. GỢI Ý PHỤ KIỆN: PHỤ KIỆN NÊN DÙNG, CÓ THỂ REMIX, NÊN TRÁNH */}
-      <div className="space-y-4">
-        <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
-          Quy ước phụ kiện cho dáng áo này
-        </h4>
-
-        {/* Phụ kiện nên dùng (Hợp truyền thống) */}
-        <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200">
-          <div className="flex items-center gap-2 mb-2 text-emerald-900 text-xs font-bold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Phụ kiện nên dùng (Hợp truyền thống):</span>
-          </div>
-          {hopTruyenThongList.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {hopTruyenThongList.map((item, idx) => (
-                <span
-                  key={idx}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-emerald-200 text-emerald-900 text-xs font-medium shadow-2xs"
-                >
-                  {item.name}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-stone-500 italic">Chưa có phụ kiện chỉ định.</p>
-          )}
-        </div>
-
-        {/* Có thể remix */}
-        <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-200">
-          <div className="flex items-center gap-2 mb-2 text-purple-900 text-xs font-bold">
-            <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
-            <span>Có thể remix (Phong cách hiện đại):</span>
-          </div>
-          {remixDuocList.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {remixDuocList.map((item, idx) => (
-                <span
-                  key={idx}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-purple-900 text-xs font-medium shadow-2xs"
-                >
-                  {item.name}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-stone-500 italic">Chưa có gợi ý remix riêng.</p>
-          )}
-        </div>
-
-        {/* Nên tránh trong dịp này */}
-        <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200">
-          <div className="flex items-center gap-2 mb-2 text-amber-950 text-xs font-bold">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Nên tránh trong dịp này:</span>
-          </div>
-          {nenTranhList.length > 0 ? (
-            <ul className="space-y-1.5">
-              {nenTranhList.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="text-xs text-amber-900 flex items-start gap-1.5"
-                >
-                  <span className="font-semibold text-amber-950 shrink-0">
-                    • {item.name}:
-                  </span>
-                  <span>{item.reason}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-emerald-800">
-              Không có phụ kiện nào bị đánh giá kiêng kỵ trong bối cảnh này.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* 3. LỜI KHUYÊN CHO BẠN (AI) */}
       {(aiTipsLoading || aiTips) && (
-        <div className="pt-2 border-t border-[#E7DECD]">
-          <div className="p-3.5 rounded-xl bg-red-50/40 border border-red-200">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#991B1B]">
-                <Lightbulb className="w-4 h-4 text-[#991B1B]" />
-                <span>Lời khuyên cho bạn</span>
-              </div>
-              <span className="text-[10px] font-medium text-stone-500 bg-white border border-stone-200 px-2 py-0.5 rounded-full">
-                Gợi ý bởi AI
-              </span>
-            </div>
+        <section className="relative mt-6 rounded-2xl p-px bg-linear-to-br from-nghe/50 via-white/5 to-son/50">
+          <div className="rounded-2xl bg-[#1a120d] p-5">
+            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muc-nhat">
+              <Sparkles className="w-4 h-4 text-nghe" />
+              Bí mật tính cách của bạn
+            </h4>
             {aiTipsLoading ? (
-              <p className="text-xs text-stone-500 italic">Đang soạn lời khuyên...</p>
+              <p className="text-sm text-muc-nhat mt-3 animate-pulse">Đang đoán bí mật tính cách của bạn…</p>
             ) : (
               aiTips && (
-                <ul className="space-y-1.5 text-xs text-stone-700 leading-relaxed">
-                  {aiTips.stylingTip && (
-                    <li>
-                      <strong>Phối đồ:</strong> {aiTips.stylingTip}
-                    </li>
+                <div className="flex gap-4 items-start mt-3">
+                  {avatarGender && (
+                    <div className="shrink-0 w-20 h-24 rounded-2xl bg-[radial-gradient(circle_at_50%_40%,rgba(233,180,76,0.28),transparent_70%)]">
+                      <StudentAvatar gender={avatarGender} age={avatarAge ?? null} className="w-full h-full" />
+                    </div>
                   )}
-                  {aiTips.accessoryTip && (
-                    <li>
-                      <strong>Phụ kiện:</strong> {aiTips.accessoryTip}
-                    </li>
-                  )}
-                  {aiTips.bodyTip && (
-                    <li>
-                      <strong>Vóc dáng:</strong> {aiTips.bodyTip}
-                    </li>
-                  )}
-                </ul>
+                  <div>
+                    <p className="font-display text-2xl font-bold italic text-gold">{aiTips.title}</p>
+                    <p className="text-sm text-muc/90 leading-relaxed mt-1.5">{aiTips.message}</p>
+                  </div>
+                </div>
               )
             )}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

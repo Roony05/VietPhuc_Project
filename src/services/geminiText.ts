@@ -1,88 +1,54 @@
-import { TEXT_MODEL } from "../config";
-import { RuleLevel } from "../types";
+import { EventTag, StyleTag } from "../types";
 
-/**
- * Kiểm tra yêu cầu chỉnh sửa của người dùng bằng AI (TEXT_MODEL).
- * Trả về status: "ok" | "warn" | "block" cùng message thông báo thân thiện.
- */
-export async function checkUserRequest(params: {
-  request: string;
-  garmentTypeLabel: string;
-  eventLabel: string | null;
-  rules: { accessoryName: string; level: RuleLevel; reason: string }[];
-}): Promise<{ status: "ok" | "warn" | "block"; message: string }> {
-  try {
-    const res = await fetch("/api/check-request", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        request: params.request,
-        garmentTypeLabel: params.garmentTypeLabel,
-        eventLabel: params.eventLabel,
-        rules: params.rules,
-        model: TEXT_MODEL,
-      }),
-    });
-
-    if (!res.ok) {
-      console.warn("[checkUserRequest] Response status:", res.status);
-      return { status: "ok", message: "" };
-    }
-
-    const data = await res.json();
-    return {
-      status: data.status || "ok",
-      message: data.message || "",
-    };
-  } catch (err) {
-    console.warn("[checkUserRequest] Lỗi gọi AI text filter:", err);
-    // Nếu gọi AI lỗi: trả về status "ok" để không chặn người dùng
-    return { status: "ok", message: "" };
-  }
+export interface LookSuggestion {
+  lookId: string;
+  reason: string;
+  source: "gemini" | "local";
 }
 
-export interface StylingTips {
-  stylingTip: string;
-  accessoryTip: string;
-  bodyTip: string | null;
+/** Nhờ Gemini chọn 1 lookbook mẫu hợp gu (qua server /api/suggest-look). Chỉ gửi chữ, nhận chữ. */
+export async function suggestLook(params: {
+  gender: "nam" | "nu" | null;
+  event: EventTag | null;
+  styles: StyleTag[];
+  ageRangeLabel: string | null;
+  freeText: string;
+}): Promise<LookSuggestion> {
+  const res = await fetch("/api/suggest-look", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error("Chưa gợi ý được, bạn thử lại nhé.");
+  return res.json();
+}
+
+export interface PersonalityTip {
+  title: string; // danh xưng, ví dụ "Lãng tử thư sinh"
+  message: string;
+  source: "gemini" | "local"; // local = câu soạn sẵn khi Gemini quá tải
 }
 
 /**
- * Nhờ AI viết lời khuyên phối đồ cá nhân (qua server /api/styling-tips).
- * Không chứa thông tin lịch sử/văn hóa — phần đó lấy từ data/.
+ * Nhờ Gemini "đoán" bí mật tính cách vui nhộn từ bộ lọc + bộ đồ đã chọn (qua server /api/personality).
+ * Server luôn trả về nội dung; chỉ lỗi khi mất kết nối.
  */
-export async function getStylingTips(params: {
-  outfitName: string;
-  garmentTypeLabel: string;
+export async function getPersonality(params: {
+  gender: "nam" | "nu" | null;
+  garmentType: string;
+  garmentLabel: string;
+  colorLabel: string | null;
   eventLabel: string | null;
   styleLabels: string[];
-  selectedAccessories: { name: string; levelLabel: string; reason: string }[];
   ageRangeLabel: string | null;
   heightCm: number | null;
   weightKg: number | null;
-}): Promise<StylingTips> {
-  const res = await fetch("/api/styling-tips", {
+}): Promise<PersonalityTip> {
+  const res = await fetch("/api/personality", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...params, model: TEXT_MODEL }),
+    body: JSON.stringify(params),
   });
-
-  if (!res.ok) {
-    let errorMsg = "Không soạn được lời khuyên.";
-    try {
-      errorMsg = (await res.json()).error || errorMsg;
-    } catch {
-      // giữ thông báo mặc định
-    }
-    throw new Error(errorMsg);
-  }
-
-  const data = await res.json();
-  return {
-    stylingTip: data.stylingTip || "",
-    accessoryTip: data.accessoryTip || "",
-    bodyTip: data.bodyTip || null,
-  };
+  if (!res.ok) throw new Error("Không soạn được bí mật tính cách.");
+  return res.json();
 }

@@ -4,6 +4,7 @@
  */
 
 import React from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { AppProvider, useApp } from "./state/AppContext";
 import { Header } from "./components/Header";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -16,36 +17,35 @@ import { LookbookScreen } from "./screens/LookbookScreen";
 function AppContent() {
   const { screen } = useApp();
 
-  const renderScreen = () => {
-    switch (screen) {
-      case "home":
-        return <HomeScreen />;
-      case "filter":
-        return <FilterScreen />;
-      case "recommend":
-        return <RecommendScreen />;
-      case "gallery":
-        return <GalleryScreen />;
-      case "studio":
-        return <StudioScreen />;
-      case "lookbook":
-        return <LookbookScreen />;
-      default:
-        return <HomeScreen />;
-    }
+  const screens = {
+    home: <HomeScreen />,
+    filter: <FilterScreen />,
+    recommend: <RecommendScreen />,
+    gallery: <GalleryScreen />,
+    studio: <StudioScreen />,
+    lookbook: <LookbookScreen />,
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-stone-900 flex flex-col font-sans selection:bg-[#991B1B] selection:text-white">
+    <div className="min-h-screen flex flex-col overflow-x-clip">
       <Header />
-      <main className="flex-1 w-full">{renderScreen()}</main>
-      <footer className="border-t border-[#E8DEC8] py-6 text-center text-xs text-stone-500 bg-[#FAF7F2]">
-        <p className="font-serif font-medium text-stone-700">
-          Việt Phục Remix — Phối cổ phục &amp; Thử đồ AI
-        </p>
-        <p className="text-[11px] text-stone-400 mt-1">
-          Dự án gìn giữ và lan tỏa di sản văn hóa Việt Nam dành cho giới trẻ
-        </p>
+      <main className="flex-1 w-full">
+        {/* chuyển màn mờ dần như cắt cảnh phim */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={screen}
+            initial={{ opacity: 0, filter: "blur(6px)" }}
+            animate={{ opacity: 1, filter: "blur(0px)" }}
+            exit={{ opacity: 0, filter: "blur(6px)" }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+          >
+            {screens[screen] ?? <HomeScreen />}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+      <footer className="border-t border-white/5 py-8 px-4 text-center text-xs text-muc-nhat">
+        <p className="font-display italic text-sm text-muc mb-1">Việt Phục Remix</p>
+        Thông tin văn hóa do đội tổng hợp và ghi nguồn · Ảnh thử đồ là ảnh minh họa do AI tạo
       </footer>
     </div>
   );

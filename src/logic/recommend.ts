@@ -51,5 +51,10 @@ export function recommendOutfits(filters: UserFilters, outfits: Outfit[]): Recom
   });
 
   // sort ổn định: cùng điểm thì giữ thứ tự trong catalog
-  return scored.sort((a, b) => b.score - a.score).slice(0, 3);
+  const bestByFamily = new Map<string, RecommendResult>();
+  for (const result of scored) {
+    const previous = bestByFamily.get(result.outfit.familyId);
+    if (!previous || result.score > previous.score) bestByFamily.set(result.outfit.familyId, result);
+  }
+  return [...bestByFamily.values()].sort((a, b) => b.score - a.score).slice(0, 3);
 }

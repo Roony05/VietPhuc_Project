@@ -1,108 +1,76 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outfit } from "../types";
-import { garmentTypeLabels, genderLabels } from "../data/labels";
+import { colorLabels, garmentTypeLabels } from "../data/labels";
 import { ImageWithFallback } from "./ImageWithFallback";
+import { Tag } from "./ui";
 import { ArrowRight, Check } from "lucide-react";
 
 interface OutfitCardProps {
   outfit: Outfit;
-  isSelected?: boolean;
-  score?: number;
-  matchReasons?: string[];
-  showReasons?: boolean;
-  onSelect?: (outfit: Outfit) => void;
-  actionLabel?: string;
+  variants?: Outfit[];
+  rank?: number;
+  reasons?: string[];
+  onSelect: (outfit: Outfit) => void;
 }
 
-export const OutfitCard: React.FC<OutfitCardProps> = ({
-  outfit,
-  isSelected = false,
-  score,
-  matchReasons,
-  showReasons = false,
-  onSelect,
-  actionLabel = "Chọn bộ này",
-}) => {
+export const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, variants, rank, reasons, onSelect }) => {
+  const available = variants?.length ? variants : [outfit];
+  const [selectedId, setSelectedId] = useState(outfit.id);
+  const selected = available.find((item) => item.id === selectedId) || outfit;
+
   return (
-    <div
-      className={`group flex flex-col bg-[#FFFDF9] border rounded-2xl overflow-hidden transition-all duration-200 ${
-        isSelected
-          ? "border-[#991B1B] ring-2 ring-red-200 shadow-md"
-          : "border-[#E7DECD] hover:border-stone-300 hover:shadow-md"
-      }`}
-    >
-      {/* Hình ảnh bộ đồ */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-stone-100">
+    <div className="group text-left flex flex-col glass border border-white/8 rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-1.5 hover:border-nghe/40 hover:shadow-2xl hover:shadow-nghe/10">
+      <button type="button" onClick={() => onSelect(selected)} className="relative aspect-3/4 overflow-hidden spotlight cursor-pointer">
         <ImageWithFallback
-          src={outfit.image}
-          alt={outfit.name}
-          fallbackTitle={outfit.name}
-          badge={outfit.imageLabel === "minh_hoa_AI" ? "Ảnh AI" : undefined}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-102"
+          src={selected.image}
+          alt={selected.name}
+          className="w-full h-full object-contain p-2 group-hover:scale-[1.03] transition-transform duration-300"
         />
+        <div className="absolute top-3 left-3 right-3 flex justify-between gap-2">
+          {rank ? (
+            <span className="w-9 h-9 rounded-full bg-gradient-to-br from-[#fff1c7] to-nghe text-[#1a120c] font-display font-bold flex items-center justify-center shadow-lg shadow-black/40">{rank}</span>
+          ) : <span />}
+          {selected.imageLabel === "minh_hoa_AI" && <Tag>Minh họa AI</Tag>}
+        </div>
+      </button>
 
-        {/* Huy hiệu giới tính và loại trang phục */}
-        <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1 z-10">
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs">
-            {genderLabels[outfit.gender]}
-          </span>
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/90 text-stone-800 backdrop-blur-xs border border-stone-200">
-            {garmentTypeLabels[outfit.garmentType]}
-          </span>
+      <div className="flex flex-col flex-1 p-4 gap-3">
+        <div>
+          <p className="text-[11px] font-semibold text-nghe uppercase tracking-[0.2em]">{garmentTypeLabels[selected.garmentType]}</p>
+          <h3 className="text-lg font-bold text-muc mt-0.5">{selected.name}</h3>
         </div>
 
-        {/* Điểm tương thích nếu có (dùng ở màn recommend) */}
-        {typeof score === "number" && (
-          <div className="absolute top-2.5 right-2.5 z-10">
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white shadow-xs">
-              {score}% hợp
-            </span>
-          </div>
-        )}
-      </div>
+        <div className="flex flex-wrap gap-1.5" aria-label="Chọn màu">
+          {available.map((item) => {
+            const color = item.colors[0];
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedId(item.id)}
+                title={colorLabels[color].label}
+                aria-label={`Chọn màu ${colorLabels[color].label}`}
+                aria-pressed={selected.id === item.id}
+                className={`w-6 h-6 rounded-full border-2 cursor-pointer ${selected.id === item.id ? "border-son ring-2 ring-son/30" : "border-vien"}`}
+                style={{ backgroundColor: colorLabels[color].hex }}
+              />
+            );
+          })}
+        </div>
 
-      {/* Nội dung thông tin bộ đồ */}
-      <div className="flex flex-col flex-1 p-3.5 sm:p-4">
-        <h3 className="font-serif font-bold text-sm sm:text-base text-stone-900 line-clamp-1 mb-1">
-          {outfit.name}
-        </h3>
-
-        {/* Lý do phù hợp (chỉ hiện khi showReasons = true) */}
-        {showReasons && matchReasons && matchReasons.length > 0 && (
-          <div className="mt-2 mb-3 p-2 rounded-lg bg-red-50/70 border border-red-100 text-[11px] text-red-900 space-y-1">
-            {matchReasons.map((reason, idx) => (
-              <div key={idx} className="flex items-start gap-1">
-                <span className="text-[#991B1B] font-bold">•</span>
-                <span>{reason}</span>
-              </div>
+        {reasons && reasons.length > 0 && (
+          <ul className="space-y-1">
+            {reasons.map((reason) => (
+              <li key={reason} className="flex items-center gap-1.5 text-sm text-muc-nhat">
+                <Check className="w-3.5 h-3.5 text-ngoc shrink-0" />{reason}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
 
-        {/* Nút hành động */}
-        <div className="mt-auto pt-3">
-          <button
-            type="button"
-            onClick={() => onSelect?.(outfit)}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              isSelected
-                ? "bg-red-800 text-white shadow-xs"
-                : "bg-[#991B1B] text-white hover:bg-red-800 active:scale-[0.99] shadow-xs"
-            }`}
-          >
-            {isSelected ? (
-              <>
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Đã chọn</span>
-              </>
-            ) : (
-              <>
-                <span>{actionLabel}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
-            )}
-          </button>
-        </div>
+        <button type="button" onClick={() => onSelect(selected)} className="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-son hover:gap-2.5 transition-all cursor-pointer">
+          Thử mẫu này <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
