@@ -13,9 +13,9 @@ export class OotdError extends Error {
   }
 }
 
-const SPACE = (process.env.OOTD_SPACE || "levihsu/OOTDiffusion").trim();
-
 function spaceHost(): string {
+  // Đọc sau khi server đã nạp .env.local / .env.
+  const SPACE = (process.env.OOTD_SPACE || "levihsu/OOTDiffusion").trim();
   if (/^https?:\/\//.test(SPACE)) return SPACE.replace(/\/+$/, "");
   return `https://${SPACE.replace("/", "-").replace(/\./g, "-").toLowerCase()}.hf.space`;
 }

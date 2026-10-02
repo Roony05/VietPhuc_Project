@@ -6,22 +6,22 @@ Luồng: **Chọn gu → Chọn bộ (gợi ý hoặc thư viện) → Thử đ�
 
 ## Chạy trên máy
 
-Cần có Node.js 20 trở lên.
+Cần có Node.js 22.12 trở lên; nên dùng Node.js 24 LTS.
 
 1. Cài thư viện:
    ```
-   npm install
+   npm ci
    ```
-2. Mở file `.env`:
+2. Sao chép `.env.example` thành `.env`, rồi điền:
    - `HF_TOKEN`: token Hugging Face quyền Read (https://huggingface.co/settings/tokens). Dùng để ghép ảnh bằng OOTDiffusion.
-   - `GEMINI_API_KEY`: Gemini API key (https://aistudio.google.com/apikey). Dùng để viết lời khuyên phối đồ trong Thẻ văn hóa.
+   - `GEMINI_API_KEY`: Gemini API key (https://aistudio.google.com/apikey). Dùng để chọn lookbook và viết bí mật tính cách trong Thẻ văn hóa.
 3. Chạy:
    ```
    npm run dev
    ```
 4. Mở http://localhost:3000
 
-Thiếu `HF_TOKEN` thì nút Ghép ảnh bị khóa và app hiện thông báo. Thiếu `GEMINI_API_KEY` thì phần lời khuyên AI bị ẩn. Các phần khác vẫn dùng bình thường.
+Thiếu `HF_TOKEN` thì nút Ghép ảnh bị khóa và app hiện thông báo. Thiếu `GEMINI_API_KEY` thì gợi ý lookbook và bí mật tính cách dùng kết quả dự phòng. Các phần khác vẫn dùng bình thường.
 
 ## Lệnh khác
 
@@ -37,16 +37,21 @@ OOTDiffusion ghép tốt nhất khi ảnh trong `public/img/outfits/` là **ản
 
 ## Cấu hình
 
-- `src/config.ts`: tên model Gemini (`TEXT_MODEL`), số lượt ghép mỗi phiên, loại vùng thay đồ cho OOTDiffusion.
+- `src/config.ts`: số lượt ghép mỗi phiên, loại vùng thay đồ cho OOTDiffusion.
+- `geminiClient.ts`: chuỗi model Gemini và giới hạn thời gian gọi AI.
 - `.env`: `OOTD_SPACE` để đổi sang Space thử đồ khác (mặc định `levihsu/OOTDiffusion`).
 
 ## Cấu trúc chính
 
-- `server.ts`: server Express, giữ token/key. Endpoint: `/api/status`, `/api/try-on` (OOTDiffusion), `/api/styling-tips` (Gemini).
+- `server.ts`: server Express, giữ token/key. Endpoint: `/api/status`, `/api/try-on` (OOTDiffusion), `/api/personality` và `/api/suggest-look` (Gemini).
 - `ootd.ts`: gọi Space OOTDiffusion trên Hugging Face.
-- `src/data/`: catalog bộ đồ, phụ kiện, quy tắc phối, nhãn tiếng Việt.
-- `src/logic/`: gợi ý, quy tắc phụ kiện, xử lý ảnh, lookbook (code thường, không dùng AI).
+- `src/data/`: catalog bộ đồ, lookbook mẫu, người mẫu và nhãn tiếng Việt.
+- `src/logic/`: gợi ý, xử lý ảnh, khung ảnh và lưu lookbook (code thường, không dùng AI).
 - `src/services/`: gọi server (`tryOn.ts`, `geminiText.ts`).
 - `src/components/ui.tsx`: nút, thẻ, chip dùng chung. Bảng màu nằm trong `src/index.css`.
 - `src/screens/`: 6 màn hình (Trang chủ, Bộ lọc, Gợi ý, Thư viện, Phòng thử đồ, Lookbook).
-- `public/img/`: ảnh bộ đồ, phụ kiện, người mẫu.
+- `public/img/`: ảnh bộ đồ, áo/quần riêng và người mẫu.
+
+## GitHub và Google AI Studio
+
+Xem [hướng dẫn kiểm tra, import và publish](DEPLOY_AI_STUDIO.md). Khi triển khai phải chạy cả server Express bằng `npm start` sau `npm run build`; `npm run preview` chỉ phục vụ giao diện. Cổng lấy từ biến môi trường `PORT`, mặc định `3000` khi chạy trên máy.
