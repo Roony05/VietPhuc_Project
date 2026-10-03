@@ -1,5 +1,6 @@
 import { Outfit, UserFilters } from "../types";
 import { colorLabels, eventLabels, styleLabels } from "../data/labels";
+import { weatherAdvice } from "./weather";
 
 export interface RecommendResult {
   outfit: Outfit;
@@ -10,7 +11,8 @@ export interface RecommendResult {
 /**
  * Lọc và chấm điểm gợi ý tối đa 3 bộ đồ (code thuần, KHÔNG dùng AI).
  * A — loại bộ khác giới tính (giữ unisex) và khác loại trang phục (nếu có chọn).
- * B — chấm điểm: +3 đúng sự kiện, +2 mỗi phong cách trùng, +2 mỗi màu trùng.
+ * B — chấm điểm: +3 đúng sự kiện, +2 mỗi phong cách trùng, +2 mỗi màu trùng,
+ *     cộng/trừ theo thời tiết ngày mặc (kiểu áo ít/nhiều lớp, màu dễ bẩn khi mưa).
  * C — sắp xếp giảm dần, lấy tối đa 3; không bịa thêm cho đủ.
  */
 export function recommendOutfits(filters: UserFilters, outfits: Outfit[]): RecommendResult[] {
@@ -24,9 +26,18 @@ export function recommendOutfits(filters: UserFilters, outfits: Outfit[]): Recom
     return true;
   });
 
+  const advice = filters.weather ? weatherAdvice(filters.weather) : null;
+
   const scored = candidates.map((outfit) => {
     let score = 0;
     const reasons: string[] = [];
+
+    if (advice) {
+      const w = advice.garmentScore[outfit.garmentType] ?? 0;
+      score += w;
+      if (w > 0) reasons.push(advice.garmentReason);
+      if (outfit.colors.some((c) => advice.avoidColors.includes(c))) score -= 2;
+    }
 
     if (filters.event && outfit.events.includes(filters.event)) {
       score += 3;

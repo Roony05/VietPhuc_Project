@@ -1,60 +1,119 @@
 import React from "react";
 import { useApp } from "../state/AppContext";
+import { ROUTES } from "../logic/routes";
 import { Screen } from "../types";
-import { BookHeart, Check } from "lucide-react";
+import { BookHeart, Home, LogIn, Shirt, SlidersHorizontal, Wand2 } from "lucide-react";
 
-const steps: { label: string; screens: Screen[] }[] = [
-  { label: "Chọn gu", screens: ["filter"] },
-  { label: "Chọn bộ", screens: ["recommend", "gallery"] },
-  { label: "Thử đồ", screens: ["studio"] },
+/** Các mục điều hướng chính; match = những màn được tính là đang ở mục đó */
+const NAV: { screen: Screen; label: string; icon: React.FC<{ className?: string }>; match: Screen[] }[] = [
+  { screen: "home", label: "Trang chủ", icon: Home, match: ["home"] },
+  { screen: "filter", label: "Chọn gu", icon: SlidersHorizontal, match: ["filter", "recommend"] },
+  { screen: "gallery", label: "Thư viện", icon: Shirt, match: ["gallery"] },
+  { screen: "studio", label: "Thử đồ", icon: Wand2, match: ["studio", "result", "finish"] },
+  { screen: "lookbook", label: "Lookbook", icon: BookHeart, match: ["lookbook"] },
 ];
+
+/** Nút tài khoản: chưa đăng nhập thì mời đăng nhập, rồi thì hiện chữ cái đầu + hồ sơ đang chọn */
+const AccountButton: React.FC = () => {
+  const { account, activeProfile, screen, goTo } = useApp();
+  const active = screen === "profile";
+  if (!account) {
+    return (
+      <button
+        onClick={() => goTo("profile")}
+        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer shrink-0 ${
+          active ? "bg-nghe text-[#1a120c]" : "glass border border-white/10 text-muc hover:border-nghe/60 hover:text-nghe"
+        }`}
+      >
+        <LogIn className="w-4 h-4" /> Đăng nhập
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={() => goTo("profile")}
+      title="Tài khoản và hồ sơ người mặc"
+      className={`inline-flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full text-sm transition-colors cursor-pointer border shrink-0 ${
+        active ? "border-nghe bg-nghe-nhat" : "border-white/10 glass hover:border-nghe/60"
+      }`}
+    >
+      <span className="w-7 h-7 rounded-full bg-gradient-to-br from-son to-nghe text-white font-bold flex items-center justify-center">
+        {account.name.charAt(0).toUpperCase() || "?"}
+      </span>
+      <span className="text-left leading-tight">
+        <span className="block text-[10px] text-muc-nhat">Chọn đồ cho</span>
+        <span className="block font-semibold text-muc max-w-24 truncate">{activeProfile?.name ?? "Chưa chọn"}</span>
+      </span>
+    </button>
+  );
+};
 
 export const Header: React.FC = () => {
   const { screen, goTo } = useApp();
-  const currentStep = steps.findIndex((s) => s.screens.includes(screen));
 
   return (
-    <header className="sticky top-0 z-40 bg-kem/60 backdrop-blur-xl border-b border-white/5">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        <button onClick={() => goTo("home")} className="flex items-center gap-2.5 cursor-pointer" title="Về trang chủ">
-          <LotusMark className="w-8 h-8" />
-          <span className="font-display font-bold text-lg text-muc">Việt Phục Remix</span>
-        </button>
+    <>
+      <header className="sticky top-0 z-40 bg-kem/70 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          <a href={ROUTES.home} className="flex items-center gap-2.5 shrink-0" title="Về trang chủ">
+            <LotusMark className="w-8 h-8" />
+            <span className="font-display font-bold text-lg text-muc">Việt Phục Remix</span>
+          </a>
 
-        {/* Thanh bước: chỉ hiện khi đang trong luồng thử đồ */}
-        {currentStep >= 0 && (
-          <ol className="hidden md:flex items-center gap-2 text-sm">
-            {steps.map((step, i) => {
-              const done = i < currentStep;
-              const active = i === currentStep;
+          {/* điều hướng chính trên màn rộng */}
+          <nav aria-label="Điều hướng chính" className="hidden md:flex items-center gap-1">
+            {NAV.map((item) => {
+              const active = item.match.includes(screen);
               return (
-                <li key={step.label} className="flex items-center gap-2">
-                  {i > 0 && <span className={`w-8 h-px ${done || active ? "bg-son" : "bg-vien"}`} />}
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                      active ? "bg-son text-white" : done ? "bg-son-nhat text-son" : "bg-vien text-muc-nhat"
-                    }`}
-                  >
-                    {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
-                  </span>
-                  <span className={active ? "font-semibold text-muc" : "text-muc-nhat"}>{step.label}</span>
-                </li>
+                <a
+                  key={item.screen}
+                  href={ROUTES[item.screen]}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goTo(item.screen);
+                  }}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
+                    active ? "text-nghe" : "text-muc-nhat hover:text-muc hover:bg-white/5"
+                  }`}
+                >
+                  {item.label}
+                  {active && <span className="absolute left-3.5 right-3.5 -bottom-0.5 h-0.5 rounded-full bg-nghe" />}
+                </a>
               );
             })}
-          </ol>
-        )}
+          </nav>
 
-        <button
-          onClick={() => goTo("lookbook")}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
-            screen === "lookbook" ? "bg-nghe text-[#1a120c] shadow-lg shadow-nghe/30" : "glass border border-white/10 text-muc hover:border-nghe/60 hover:text-nghe"
-          }`}
-        >
-          <BookHeart className="w-4 h-4" />
-          <span>Lookbook</span>
-        </button>
-      </div>
-    </header>
+          <AccountButton />
+        </div>
+      </header>
+
+      {/* thanh tab dưới đáy trên điện thoại */}
+      <nav
+        aria-label="Điều hướng chính"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-kem/90 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)]"
+      >
+        <ul className="grid grid-cols-5">
+          {NAV.map((item) => {
+            const active = item.match.includes(screen);
+            return (
+              <li key={item.screen}>
+                <button
+                  onClick={() => goTo(item.screen)}
+                  aria-current={active ? "page" : undefined}
+                  className={`w-full h-16 flex flex-col items-center justify-center gap-1 text-[11px] font-medium cursor-pointer ${
+                    active ? "text-nghe" : "text-muc-nhat"
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </>
   );
 };
 

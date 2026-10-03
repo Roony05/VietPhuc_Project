@@ -4,8 +4,10 @@ import { outfits } from "../data/outfits";
 import { filterSummary } from "../data/labels";
 import { recommendOutfits } from "../logic/recommend";
 import { OutfitCard } from "../components/OutfitCard";
+import { FlowHeader } from "../components/Flow";
 import { Button, Card, PageTitle } from "../components/ui";
-import { ArrowLeft, LayoutGrid, SearchX } from "lucide-react";
+import { ArrowLeft, CloudSun, LayoutGrid, SearchX } from "lucide-react";
+import { weatherAdvice } from "../logic/weather";
 import { Outfit } from "../types";
 
 export const RecommendScreen: React.FC = () => {
@@ -13,6 +15,7 @@ export const RecommendScreen: React.FC = () => {
   const results = recommendOutfits(filters, outfits);
 
   const chips = filterSummary(filters);
+  const advice = filters.weather ? weatherAdvice(filters.weather) : null;
 
   const choose = (o: Outfit) => {
     setSelectedOutfitId(o.id);
@@ -20,9 +23,10 @@ export const RecommendScreen: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <>
+      <FlowHeader current={1} back={() => goTo("filter")} />
+    <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
       <PageTitle
-        eyebrow="Bước 2 / 3"
         title={results.length > 0 ? `${results.length} bộ hợp với bạn nhất` : "Chưa tìm thấy bộ phù hợp"}
         description="Xếp theo mức hợp với dịp mặc, phong cách và màu bạn chọn. Bấm vào một bộ để thử."
         action={
@@ -40,6 +44,27 @@ export const RecommendScreen: React.FC = () => {
             </span>
           ))}
         </div>
+      )}
+
+      {advice && (
+        <Card className="p-5 mb-8 flex gap-4 items-start">
+          <span className="w-11 h-11 rounded-2xl bg-nghe-nhat text-nghe flex items-center justify-center shrink-0">
+            <CloudSun className="w-5 h-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold text-muc">
+              {advice.headline}
+              <span className="ml-2 text-[11px] font-normal text-muc-nhat">
+                {filters.weather?.source === "forecast" ? "Dự báo" : "Ước tính theo mùa"}
+              </span>
+            </p>
+            <ul className="mt-1.5 space-y-1 text-sm text-muc-nhat list-disc pl-4">
+              {advice.tips.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </div>
+        </Card>
       )}
 
       {results.length === 0 ? (
@@ -71,5 +96,6 @@ export const RecommendScreen: React.FC = () => {
         </>
       )}
     </div>
+    </>
   );
 };

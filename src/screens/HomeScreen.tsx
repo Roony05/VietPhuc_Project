@@ -10,8 +10,8 @@ import { Sparkles, LayoutGrid, SlidersHorizontal, Shirt, Camera, Frame, BookHear
 const howItWorks = [
   { icon: SlidersHorizontal, title: "Chọn gu", text: "Dịp mặc, phong cách, màu sắc bạn thích." },
   { icon: Shirt, title: "Chọn bộ", text: "App gợi ý 3 bộ hợp nhất, hoặc bạn tự chọn trong thư viện." },
-  { icon: Camera, title: "Lên đồ", text: "Tải ảnh của bạn lên, AI mặc thử bộ đồ lên ảnh." },
-  { icon: Frame, title: "Đóng khung", text: "Chọn 1 trong 12 khung lookbook rồi tải về khoe liền." },
+  { icon: Camera, title: "Lên đồ", text: "Tải ảnh của bạn lên, AI mặc thử bộ đồ rồi phối thêm nón, quạt, trâm cài." },
+  { icon: Frame, title: "Đóng khung", text: `Chọn 1 trong ${FRAMES.length} khung lookbook điện ảnh rồi tải về khoe liền.` },
 ];
 
 const pick = (familyId: string, color: string) => outfits.find((o) => o.familyId === familyId && o.colors[0] === color);
@@ -69,7 +69,7 @@ export const HomeScreen: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.9, delay: 0.4, ease }}
             >
-              của bạn.
+              của bạn
             </motion.span>
           </h1>
 
@@ -195,7 +195,7 @@ export const HomeScreen: React.FC = () => {
               Sẵn sàng <span className="text-gold italic">lên hình</span>?
             </h2>
             <p className="text-muc-nhat mt-4 max-w-lg mx-auto">
-              Chưa biết mặc gì? Xem {presetLooks.length} lookbook dựng sẵn, hoặc để Gemini “bói” giúp bạn một bộ.
+              Chưa biết mặc gì? Xem {presetLooks.length} lookbook dựng sẵn, hoặc để app gợi ý giúp bạn một bộ.
             </p>
             <div className="flex flex-wrap justify-center gap-3 mt-8">
               <Button size="lg" onClick={() => start("filter")}>

@@ -5,7 +5,7 @@ import { outfits } from "../data/outfits";
 import { ageRangeLabels, eventLabels, genderLabels, styleLabels } from "../data/labels";
 import { suggestLook, LookSuggestion } from "../services/geminiText";
 import { ImageWithFallback } from "./ImageWithFallback";
-import { StudentAvatar } from "./StudentAvatar";
+import { FolkAvatar } from "./FolkAvatar";
 import { Button, Card, Chip } from "./ui";
 import { ArrowRight, Sparkles, Wand2 } from "lucide-react";
 
@@ -55,9 +55,9 @@ export const PresetLookbook: React.FC = () => {
       <Card className="p-5 sm:p-6 bg-nghe-nhat border-nghe/30">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-5 h-5 text-nghe" />
-          <h2 className="text-lg font-bold text-muc">Chưa biết chọn mẫu nào? Để Gemini chọn giúp</h2>
+          <h2 className="text-lg font-bold text-muc">Chưa biết chọn mẫu nào? Để app chọn giúp</h2>
         </div>
-        <p className="text-sm text-muc-nhat mb-4">Kể ngắn gọn gu của bạn, Gemini sẽ chọn 1 mẫu hợp nhất trong 10 mẫu bên dưới.</p>
+        <p className="text-sm text-muc-nhat mb-4">Kể ngắn gọn gu của bạn, app sẽ chọn 1 mẫu hợp nhất trong 10 mẫu bên dưới.</p>
         <div className="flex flex-wrap gap-2 mb-3">
           <Chip selected={gender === null} onClick={() => setGender(null)}>
             Tất cả
@@ -78,16 +78,16 @@ export const PresetLookbook: React.FC = () => {
             className="flex-1 px-4 py-3 rounded-full border border-vien bg-giay focus:outline-none focus:border-son"
           />
           <Button onClick={askGemini} disabled={loading}>
-            <Wand2 className="w-4 h-4" /> {loading ? "Gemini đang chọn…" : "Gợi ý cho tôi"}
+            <Wand2 className="w-4 h-4" /> {loading ? "Đang chọn…" : "Gợi ý cho tôi"}
           </Button>
         </div>
         {error && <p className="text-sm text-son mt-3">{error}</p>}
         {picked && suggestion && (
           <div className="mt-4 flex items-center gap-3 p-4 rounded-2xl bg-giay border border-vien">
-            <StudentAvatar gender={picked.gender} age={filters.ageRange ?? picked.ageHint} className="w-14 h-18 shrink-0" />
+            <FolkAvatar gender={picked.gender} age={filters.ageRange ?? picked.ageHint} className="w-14 h-18 shrink-0" />
             <div className="flex-1">
               <p className="font-bold text-muc">
-                Gemini chọn: <span className="text-son">{picked.title}</span>
+                Gợi ý cho bạn: <span className="text-son">{picked.title}</span>
               </p>
               <p className="text-sm text-muc mt-0.5">{suggestion.reason}</p>
             </div>
@@ -111,14 +111,14 @@ export const PresetLookbook: React.FC = () => {
             >
               <div className="relative aspect-4/5 spotlight">
                 <ImageWithFallback src={outfit?.image} alt={look.title} className="w-full h-full p-3" />
-                <StudentAvatar
+                <FolkAvatar
                   gender={look.gender}
                   age={look.ageHint}
                   className="absolute bottom-2 right-2 w-16 h-20 drop-shadow"
                 />
                 {highlighted && (
                   <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-nghe text-muc text-xs font-bold">
-                    ✨ Gemini chọn
+                    ✨ Hợp với bạn
                   </span>
                 )}
               </div>

@@ -1,5 +1,6 @@
+import { GARMENT_HISTORY } from "./history";
 import { ColorTag, EventTag, GarmentType, Gender, Outfit, StyleTag } from "../types";
-import { colorLabels, garmentTypeLabels, genderLabels } from "./labels";
+import { colorLabels } from "./labels";
 
 // 11 màu có ảnh sẵn cho mọi gia đình trang phục.
 export const outfitColors: ColorTag[] = [
@@ -28,7 +29,6 @@ interface FamilyDef {
   baseName: string; // tên hiển thị trước khi ghép giới tính + màu
   events: EventTag[];
   styles: StyleTag[];
-  meaning: string;
 }
 
 // Mỗi bản ghi mô tả MỘT gia đình trang phục (kiểu áo/quần + giới tính), dùng chung cho toàn bộ 11 màu.
@@ -41,8 +41,6 @@ const families: FamilyDef[] = [
     baseName: "Áo dài nữ",
     events: ["khai_giang", "ky_yeu", "le_tot_nghiep", "tet", "dam_cuoi", "chup_anh"],
     styles: ["truyen_thong", "sang_trong"],
-    meaning:
-      "Áo dài là trang phục truyền thống quen thuộc của phụ nữ Việt Nam, gồm hai tà áo dài thả xuống mặc cùng quần dài bên trong, ôm nhẹ theo dáng người. Áo dài thường được mặc trong các dịp trang trọng như khai giảng, lễ tốt nghiệp, Tết hoặc đám cưới, và cũng thường xuất hiện trong ảnh kỷ yếu, ảnh lưu niệm.",
   },
   {
     garmentType: "ao_dai",
@@ -50,8 +48,6 @@ const families: FamilyDef[] = [
     baseName: "Áo dài nam",
     events: ["khai_giang", "ky_yeu", "le_tot_nghiep", "tet", "dam_cuoi"],
     styles: ["truyen_thong", "sang_trong"],
-    meaning:
-      "Áo dài nam là trang phục truyền thống dành cho nam giới, form áo suông dài qua gối, cổ đứng, thường mặc cùng quần dài. Trang phục này thường xuất hiện trong các dịp trang trọng như lễ Tết, đám cưới, lễ tốt nghiệp hoặc khi chụp ảnh kỷ yếu cùng bạn bè.",
   },
   {
     garmentType: "ao_dai_cach_tan",
@@ -59,8 +55,6 @@ const families: FamilyDef[] = [
     baseName: "Áo dài cách tân nữ",
     events: ["dao_pho", "chup_anh", "ky_yeu"],
     styles: ["gen_z", "toi_gian"],
-    meaning:
-      "Áo dài cách tân là phiên bản biến tấu từ áo dài truyền thống, thường có tà áo ngắn hơn, form dáng thoải mái và dễ phối cùng phụ kiện hiện đại. Kiểu áo này được nhiều bạn trẻ lựa chọn khi dạo phố, chụp ảnh hoặc chụp kỷ yếu vì vừa giữ được nét duyên dáng vừa trẻ trung, năng động.",
   },
   {
     garmentType: "ao_dai_cach_tan",
@@ -68,8 +62,6 @@ const families: FamilyDef[] = [
     baseName: "Áo dài cách tân nam",
     events: ["dao_pho", "chup_anh", "ky_yeu"],
     styles: ["gen_z", "toi_gian"],
-    meaning:
-      "Áo dài cách tân nam là phiên bản hiện đại hóa của áo dài truyền thống, thường được cắt gọn hơn, chất liệu và màu sắc đa dạng, dễ mặc trong đời sống thường ngày. Đây là lựa chọn phổ biến của giới trẻ khi dạo phố, chụp ảnh hoặc tham gia các buổi chụp kỷ yếu.",
   },
   {
     garmentType: "ao_tu_than",
@@ -77,8 +69,6 @@ const families: FamilyDef[] = [
     baseName: "Áo tứ thân nữ",
     events: ["le_hoi", "tet", "chup_anh", "di_chua"],
     styles: ["truyen_thong"],
-    meaning:
-      "Áo tứ thân là trang phục truyền thống thường gắn với hình ảnh phụ nữ vùng đồng bằng Bắc Bộ, gồm nhiều vạt áo buông dài, thường mặc cùng yếm và thắt lưng. Trang phục này thường xuất hiện trong các lễ hội truyền thống, dịp Tết hoặc khi chụp ảnh mang phong cách xưa.",
   },
   {
     garmentType: "ao_tu_than",
@@ -86,8 +76,6 @@ const families: FamilyDef[] = [
     baseName: "Áo tứ thân nam",
     events: ["le_hoi", "tet", "chup_anh", "di_chua"],
     styles: ["truyen_thong"],
-    meaning:
-      "Áo tứ thân nam là biến thể dành cho nam giới của trang phục tứ thân truyền thống, form áo rộng rãi, thường mặc cùng khăn và thắt lưng. Trang phục này thường xuất hiện trong các lễ hội dân gian, dịp Tết hoặc khi chụp ảnh theo phong cách truyền thống.",
   },
   {
     garmentType: "ao_ngu_than",
@@ -95,8 +83,6 @@ const families: FamilyDef[] = [
     baseName: "Áo ngũ thân nữ",
     events: ["tet", "le_hoi", "dam_cuoi", "di_chua"],
     styles: ["truyen_thong", "sang_trong"],
-    meaning:
-      "Áo ngũ thân là trang phục truyền thống với năm vạt áo, cổ đứng, tay áo dài, thường được may từ chất liệu trang trọng. Áo được nhiều người lựa chọn để mặc trong các dịp lễ trang nghiêm như Tết, lễ hội, đám cưới hoặc khi đi lễ chùa.",
   },
   {
     garmentType: "ao_ngu_than",
@@ -104,8 +90,6 @@ const families: FamilyDef[] = [
     baseName: "Áo ngũ thân nam",
     events: ["tet", "le_hoi", "dam_cuoi", "di_chua"],
     styles: ["truyen_thong", "sang_trong"],
-    meaning:
-      "Áo ngũ thân nam là trang phục truyền thống gồm năm vạt áo, cổ đứng, dáng áo dài qua gối, thường mặc cùng khăn đóng trong các nghi lễ. Trang phục này thường được dùng trong dịp Tết, lễ hội, đám cưới hoặc khi đi lễ chùa vì vẻ trang trọng, chỉn chu.",
   },
   {
     garmentType: "ao_ba_ba",
@@ -113,8 +97,6 @@ const families: FamilyDef[] = [
     baseName: "Áo bà ba nữ",
     events: ["dao_pho", "le_hoi", "chup_anh"],
     styles: ["truyen_thong", "toi_gian"],
-    meaning:
-      "Áo bà ba là trang phục dân dã quen thuộc, thường gắn với hình ảnh vùng sông nước Nam Bộ, form áo đơn giản, không cổ, xẻ tà hai bên, mặc cùng quần dài. Trang phục này thoải mái, dễ mặc, thường xuất hiện khi dạo phố, tham gia lễ hội hoặc chụp ảnh mang phong cách mộc mạc.",
   },
   {
     garmentType: "ao_ba_ba",
@@ -122,8 +104,6 @@ const families: FamilyDef[] = [
     baseName: "Áo bà ba nam",
     events: ["dao_pho", "le_hoi", "chup_anh"],
     styles: ["truyen_thong", "toi_gian"],
-    meaning:
-      "Áo bà ba nam là trang phục dân dã, form áo rộng rãi, không cổ, xẻ tà hai bên, thường mặc cùng quần dài thoải mái. Đây là lựa chọn quen thuộc khi dạo phố, tham gia lễ hội dân gian hoặc chụp ảnh theo phong cách giản dị, gần gũi.",
   },
   {
     garmentType: "ao_tac",
@@ -131,8 +111,6 @@ const families: FamilyDef[] = [
     baseName: "Áo tấc nữ",
     events: ["tet", "le_hoi", "dam_cuoi", "di_chua"],
     styles: ["truyen_thong", "sang_trong"],
-    meaning:
-      "Áo tấc là loại lễ phục truyền thống với tay áo rộng, dáng áo thụng, thường được may cầu kỳ và trang trọng hơn áo thường ngày. Trang phục này thường được mặc trong các dịp lễ quan trọng như Tết, lễ hội, đám cưới hoặc khi đi lễ chùa.",
   },
   {
     garmentType: "ao_tac",
@@ -140,12 +118,10 @@ const families: FamilyDef[] = [
     baseName: "Áo tấc nam",
     events: ["tet", "le_hoi", "dam_cuoi", "di_chua"],
     styles: ["truyen_thong", "sang_trong"],
-    meaning:
-      "Áo tấc nam là lễ phục truyền thống với tay áo rộng, dáng thụng, thường mặc cùng khăn đóng trong các nghi lễ trang trọng. Trang phục này thường xuất hiện trong dịp Tết, lễ hội, đám cưới hoặc khi đi lễ chùa nhờ vẻ trang nghiêm, chỉn chu.",
   },
 ];
 
-// Tên tệp ảnh: {loai-trang-phuc}-{gioi-tinh}-{mau}.png trong public/img/outfits
+// Tên tệp ảnh: {loai-trang-phuc}-{gioi-tinh}-{mau}.webp trong public/img/outfits (ảnh PNG gốc ở ../assets_goc)
 const fileBaseFor = (garmentType: GarmentType, gender: Gender) => `${garmentType.replaceAll("_", "-")}-${gender}`;
 
 export const outfits: Outfit[] = families.flatMap((family) => {
@@ -165,10 +141,10 @@ export const outfits: Outfit[] = families.flatMap((family) => {
       colors: [color],
       events: family.events,
       styles: family.styles,
-      image: `/img/outfits/${id}.png`,
-      meaning: `${family.meaning} ${colorNotes[color]}`,
-      meaningSource: "CẦN BỔ SUNG",
-      imageLabel: "minh_hoa_AI",
+      image: `/img/outfits/${id}.webp`,
+      // lịch sử kiểu áo lấy từ src/data/history.ts (đã đối chiếu nguồn), kèm ghi chú cảm quan về màu
+      meaning: `${GARMENT_HISTORY[family.garmentType].facts[0]} ${colorNotes[color]}`,
+      meaningSource: GARMENT_HISTORY[family.garmentType].sources.map((src) => src.label).join("; "),
       verified: false,
     };
   });

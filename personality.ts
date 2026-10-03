@@ -1,5 +1,5 @@
 /**
- * "Bí mật tính cách": Gemini viết một đoạn khen vui nhộn dựa trên lựa chọn của người dùng.
+ * "Phong thái khi diện bộ này": Gemini đặt danh xưng + viết lời khen vui về khí chất của người dùng trong bộ đồ.
  * Gemini hay quá tải (503) hoặc treo, nên mỗi lần gọi có giới hạn thời gian,
  * và luôn có câu soạn sẵn để người dùng không bao giờ thấy chỗ trống.
  */
@@ -59,8 +59,8 @@ export function localPersonality(input: PersonalityInput): PersonalityResult {
 }
 
 function buildPrompt(i: PersonalityInput): string {
-  return `Bạn là "thầy bói thời trang" vui tính của một app Việt phục dành cho học sinh, sinh viên.
-Dựa vào lựa chọn dưới đây, hãy "đoán" một bí mật tính cách thật dễ thương và KHEN người dùng.
+  return `Bạn là stylist vui tính của một app Việt phục dành cho học sinh, sinh viên.
+Dựa vào lựa chọn dưới đây, hãy đặt một danh xưng cho phong thái của người dùng khi diện bộ đồ này và KHEN họ.
 
 Lựa chọn:
 - Giới tính: ${i.gender === "nam" ? "nam" : i.gender === "nu" ? "nữ" : "không rõ"}

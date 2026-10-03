@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useApp } from "../state/AppContext";
 import { outfits } from "../data/outfits";
 import { colorLabels, eventLabels, garmentTypeLabels } from "../data/labels";
 import { deleteLookbookItem, loadLookbook } from "../logic/lookbookStorage";
@@ -8,14 +7,13 @@ import { LookbookItem } from "../types";
 import { presetLooks } from "../data/presetLooks";
 
 const presetCount = presetLooks.length;
-import { Button, Card, Chip, PageTitle, Tag } from "../components/ui";
+import { Button, Chip, PageTitle } from "../components/ui";
 import { PresetLookbook } from "../components/PresetLookbook";
 import { FrameStudio } from "../components/FrameStudio";
 import { BRAND } from "../logic/frames";
 import { BookHeart, Columns2, Frame, Trash2, X } from "lucide-react";
 
 export const LookbookScreen: React.FC = () => {
-  const { goTo } = useApp();
   const [items, setItems] = useState<LookbookItem[]>(() => loadLookbook());
   const [compareMode, setCompareMode] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
@@ -59,7 +57,7 @@ export const LookbookScreen: React.FC = () => {
         <PageTitle
           eyebrow="Chọn nhanh, khỏi đắn đo"
           title="Lookbook mẫu"
-          description="10 cách phối dựng sẵn cho đủ dịp. Thích mẫu nào thì bấm thử, hoặc để Gemini chọn giúp."
+          description="10 cách phối dựng sẵn cho đủ dịp. Thích mẫu nào thì bấm thử, hoặc để app chọn giúp."
         />
         {tabs}
         <PresetLookbook />
@@ -131,9 +129,6 @@ export const LookbookScreen: React.FC = () => {
                 className="relative block w-full aspect-3/4 bg-kem disabled:cursor-default cursor-pointer"
               >
                 <img src={item.imageDataUrl} alt={outfit?.name || "Bộ phối"} className="w-full h-full object-cover" />
-                <div className="absolute top-2 left-2">
-                  <Tag>Minh họa AI</Tag>
-                </div>
                 {compareMode && (
                   <span
                     className={`absolute top-2 right-2 w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold ${

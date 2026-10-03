@@ -1,5 +1,5 @@
 /**
- * 12 khung ảnh lookbook vẽ bằng Canvas (không cần file ảnh, chạy hoàn toàn trên trình duyệt).
+ * Các khung ảnh lookbook vẽ bằng Canvas (không cần file ảnh, chạy hoàn toàn trên trình duyệt).
  * Ảnh người luôn hiện trọn (không cắt đầu/chân); phần trống được lấp bằng chính ảnh đó làm mờ.
  * Mỗi khung có dòng "Đồng hành cùng Việt Phục Remix".
  */
@@ -21,10 +21,11 @@ export interface FrameDef {
 
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { StudentAvatar } from "../components/StudentAvatar";
+import { FolkAvatar } from "../components/FolkAvatar";
 
 const SERIF = '"Playfair Display", Georgia, serif';
 const SANS = '"Be Vietnam Pro", system-ui, sans-serif';
+const INK = "#1F1712"; // mực nét truyện tranh xưa
 type Ctx = CanvasRenderingContext2D;
 
 // ---------- tiện ích vẽ ----------
@@ -50,18 +51,69 @@ function archPath(ctx: Ctx, x: number, y: number, w: number, h: number) {
   ctx.closePath();
 }
 
+/** Độ phóng hiện tại của canvas (ảnh xem trước nhỏ hơn ảnh thật), để blur tỉ lệ đúng ở mọi cỡ */
+function pxScale(ctx: Ctx) {
+  const t = ctx.getTransform();
+  return Math.hypot(t.a, t.b) || 1;
+}
+
+/**
+ * Hậu kỳ kiểu phim cho vùng ảnh: quầng sáng ấm quanh chỗ sáng (halation), vùng sáng ấm / vùng tối xanh ngọc,
+ * tối dần ở mép. k từ 0 (tắt) tới 1 (đậm).
+ */
+function cinematicGrade(ctx: Ctx, img: HTMLImageElement, dx: number, dy: number, dw: number, dh: number, k: number) {
+  if (k <= 0) return;
+  const s = pxScale(ctx);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(dx, dy, dw, dh); // quầng sáng chỉ trong vùng ảnh, không loang ra nền
+  ctx.clip();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 0.22 * k;
+  ctx.filter = `blur(${16 * s}px) brightness(1.05) sepia(0.5) saturate(1.8)`;
+  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "soft-light";
+  const tone = ctx.createLinearGradient(dx, dy, dx, dy + dh);
+  tone.addColorStop(0, `rgba(255,186,120,${0.38 * k})`);
+  tone.addColorStop(0.55, `rgba(255,214,170,${0.12 * k})`);
+  tone.addColorStop(1, `rgba(30,110,120,${0.4 * k})`);
+  ctx.fillStyle = tone;
+  ctx.fillRect(dx, dy, dw, dh);
+  ctx.restore();
+
+  const r = Math.max(dw, dh);
+  const v = ctx.createRadialGradient(dx + dw / 2, dy + dh * 0.45, r * 0.3, dx + dw / 2, dy + dh * 0.45, r * 0.78);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, `rgba(0,0,0,${0.42 * k})`);
+  ctx.fillStyle = v;
+  ctx.fillRect(dx, dy, dw, dh);
+}
+
 /**
  * Vẽ ảnh vào vùng cho trước: ảnh hiện TRỌN (contain), nền phía sau là chính ảnh phóng to + làm mờ.
- * clipPath cho phép cắt theo hình tùy ý (bo góc, cửa vòm...).
+ * clipPath cho phép cắt theo hình tùy ý (bo góc, cửa vòm...). grade: độ đậm hậu kỳ điện ảnh (0 = ảnh gốc).
  */
-function drawPhoto(ctx: Ctx, img: HTMLImageElement, x: number, y: number, w: number, h: number, r = 0, clipPath?: () => void) {
+function drawPhoto(
+  ctx: Ctx,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r = 0,
+  clipPath?: () => void,
+  grade = 0.55
+) {
   ctx.save();
   if (clipPath) clipPath();
   else roundRectPath(ctx, x, y, w, h, r);
   ctx.clip();
 
   const cover = Math.max(w / img.width, h / img.height) * 1.2;
-  ctx.filter = "blur(26px) saturate(1.15) brightness(0.8)";
+  ctx.filter = `blur(${26 * pxScale(ctx)}px) saturate(1.15) brightness(0.8)`;
   ctx.drawImage(img, x + (w - img.width * cover) / 2, y + (h - img.height * cover) / 2, img.width * cover, img.height * cover);
   ctx.filter = "none";
   ctx.fillStyle = "rgba(0,0,0,0.12)";
@@ -71,10 +123,11 @@ function drawPhoto(ctx: Ctx, img: HTMLImageElement, x: number, y: number, w: num
   const dw = img.width * fit;
   const dh = img.height * fit;
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  cinematicGrade(ctx, img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, grade);
   ctx.restore();
 }
 
-function text(ctx: Ctx, value: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = "center") {
+function text(ctx: Ctx, value: string, x: number, y: number, font: string, color: string | CanvasGradient, align: CanvasTextAlign = "center") {
   ctx.font = font;
   ctx.fillStyle = color;
   ctx.textAlign = align;
@@ -92,23 +145,86 @@ function glowText(ctx: Ctx, value: string, x: number, y: number, font: string, c
   ctx.restore();
 }
 
-/** Hạt film nhẹ cho cảm giác điện ảnh */
-function grain(ctx: Ctx, alpha = 0.06, seed = 11) {
-  let s = seed;
-  const rand = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-  for (let i = 0; i < 2200; i++) ctx.fillRect(rand() * FRAME_W, rand() * FRAME_H, 1.6, 1.6);
-  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-  for (let i = 0; i < 2200; i++) ctx.fillRect(rand() * FRAME_W, rand() * FRAME_H, 1.6, 1.6);
+let noiseTile: HTMLCanvasElement | null = null;
+/** Ô nhiễu 256×256 dùng lặp lại làm hạt phim (tạo 1 lần) */
+function noise() {
+  if (!noiseTile) {
+    noiseTile = document.createElement("canvas");
+    noiseTile.width = noiseTile.height = 256;
+    const c = noiseTile.getContext("2d")!;
+    const data = c.createImageData(256, 256);
+    let s = 11;
+    for (let i = 0; i < data.data.length; i += 4) {
+      s = (s * 16807) % 2147483647;
+      const v = 128 + (s / 2147483647 - 0.5) * 255;
+      data.data[i] = data.data[i + 1] = data.data[i + 2] = v;
+      data.data[i + 3] = 255;
+    }
+    c.putImageData(data, 0, 0);
+  }
+  return noiseTile;
 }
 
-/** Tối dần ở mép ảnh (vignette) */
-function vignette(ctx: Ctx, strength = 0.55) {
-  const g = ctx.createRadialGradient(FRAME_W / 2, FRAME_H / 2, FRAME_H * 0.25, FRAME_W / 2, FRAME_H / 2, FRAME_H * 0.75);
-  g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(1, `rgba(0,0,0,${strength})`);
-  ctx.fillStyle = g;
+/** Hạt phim phủ toàn khung (chồng kiểu overlay nên giữ màu, chỉ thêm độ "sạn") */
+function grain(ctx: Ctx, alpha = 0.06) {
+  ctx.save();
+  ctx.globalCompositeOperation = "overlay";
+  ctx.globalAlpha = Math.min(1, alpha * 3.2);
+  ctx.fillStyle = ctx.createPattern(noise(), "repeat")!;
   ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+  ctx.restore();
+}
+
+/** Chữ giãn khoảng cách (kiểu chữ credit trên poster phim) */
+function spaced(ctx: Ctx, value: string, x: number, y: number, font: string, color: string, spacing: number, align: CanvasTextAlign = "center") {
+  ctx.save();
+  (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${spacing}px`;
+  text(ctx, value, x + (align === "center" ? spacing / 2 : 0), y, font, color, align);
+  ctx.restore();
+}
+
+/** Ngắt chữ thành nhiều dòng vừa bề rộng */
+function wrap(ctx: Ctx, value: string, font: string, maxW: number): string[] {
+  ctx.font = font;
+  const lines: string[] = [];
+  let line = "";
+  for (const word of value.split(" ")) {
+    const next = line ? `${line} ${word}` : word;
+    if (ctx.measureText(next).width > maxW && line) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/** Màu vàng dát cho chữ / viền */
+function goldFill(ctx: Ctx, y0: number, y1: number) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, "#FFF1C9");
+  g.addColorStop(0.45, "#E9B44C");
+  g.addColorStop(0.55, "#C8902F");
+  g.addColorStop(1, "#F6D98A");
+  return g;
+}
+
+/** Vệt lóa ống kính anamorphic: dải sáng ngang mảnh */
+function anamorphicFlare(ctx: Ctx, cx: number, cy: number, len: number, color: string) {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.translate(cx, cy);
+  ctx.scale(len / 100, 0.06);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 100);
+  g.addColorStop(0, color);
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(-100, -100, 200, 200);
+  ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  glow(ctx, cx, cy, len * 0.06, "rgba(255,255,255,0.5)");
+  ctx.restore();
 }
 
 function glow(ctx: Ctx, cx: number, cy: number, r: number, color: string) {
@@ -260,11 +376,11 @@ function sticker(ctx: Ctx, cx: number, cy: number, label: string, bg: string, fg
 }
 
 
-/** Nhân vật chibi học sinh (dùng lại SVG StudentAvatar), nạp sẵn trong ensureFonts() */
+/** Nhân vật truyện tranh xưa (dùng lại SVG FolkAvatar: thư sinh / cô thôn nữ), nạp sẵn trong ensureFonts() */
 const characters: Partial<Record<"nam" | "nu", HTMLImageElement>> = {};
 
 function characterDataUrl(gender: "nam" | "nu") {
-  const svg = renderToStaticMarkup(createElement(StudentAvatar, { gender, age: "16_18" })).replace(
+  const svg = renderToStaticMarkup(createElement(FolkAvatar, { gender, age: "16_18", framed: false })).replace(
     "<svg",
     '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="750"'
   );
@@ -276,68 +392,991 @@ function drawCharacter(ctx: Ctx, gender: "nam" | "nu", x: number, y: number, w: 
   if (img) ctx.drawImage(img, x, y, w, w * 1.25);
 }
 
-function speechBubble(ctx: Ctx, x: number, y: number, label: string, bg: string, fg: string, tailLeft = true) {
-  ctx.font = `800 36px ${SANS}`;
-  const w = ctx.measureText(label).width + 60;
+/** Bong bóng thoại kiểu truyện tranh: nền trắng, viền mực, đuôi chỉ về nhân vật */
+function comicBubble(ctx: Ctx, x: number, y: number, label: string, tailLeft = true) {
+  const font = `800 38px ${SANS}`;
+  ctx.font = font;
+  const w = ctx.measureText(label).width + 70;
+  const h = 84;
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.15)";
-  ctx.shadowBlur = 14;
-  ctx.fillStyle = bg;
-  roundRectPath(ctx, x, y, w, 76, 38);
-  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = INK;
+  ctx.fillStyle = "#FFFDF6";
   ctx.beginPath();
-  const tx = tailLeft ? x + 50 : x + w - 50;
-  ctx.moveTo(tx - 18, y + 70);
-  ctx.lineTo(tx + (tailLeft ? -26 : 26), y + 112);
-  ctx.lineTo(tx + 18, y + 70);
+  ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // đuôi: tam giác nhọn hướng xuống về phía nhân vật, phủ lên viền
+  const bx = tailLeft ? x + w * 0.22 : x + w * 0.78;
+  const tip = tailLeft ? -40 : 40;
+  ctx.beginPath();
+  ctx.moveTo(bx - 20, y + h - 10);
+  ctx.lineTo(bx + tip, y + h + 46);
+  ctx.lineTo(bx + 20, y + h - 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h / 2, w / 2 - 3, h / 2 - 3, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  text(ctx, label, x + w / 2, y + 39, `800 36px ${SANS}`, fg);
+  text(ctx, label, x + w / 2, y + h / 2 + 2, font, INK);
 }
 
-function paperPlane(ctx: Ctx, x: number, y: number, s: number, color: string) {
+/** Mây cuộn kép (họa tiết dân gian): hai vòng xoắn nối bằng một đường nền */
+function cloudSwirl(ctx: Ctx, x: number, y: number, s: number, color: string, dir: 1 | -1 = 1) {
+  // điểm trên vòng xoắn: bắt đầu ở đáy vòng (bán kính r), xoáy vào trong
+  const curl = (cx: number, cy: number, r: number, turn: 1 | -1) =>
+    Array.from({ length: 41 }, (_, i) => {
+      const t = i / 40;
+      const a = Math.PI / 2 - turn * t * Math.PI * 2.4;
+      const rr = r * (1 - 0.72 * t);
+      return [cx + rr * Math.cos(a), cy + rr * Math.sin(a)] as const;
+    });
+  const big = curl(0, 0, 18, 1); // xoáy sang phải
+  const small = curl(-52, 5, 13, -1).reverse(); // xoáy sang trái, đi từ trong ra
   ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(dir * s, s);
   ctx.strokeStyle = color;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 4.5 / s;
+  ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + s, y - s * 0.45);
-  ctx.lineTo(x + s * 0.55, y + s * 0.35);
-  ctx.closePath();
-  ctx.moveTo(x + s, y - s * 0.45);
-  ctx.lineTo(x + s * 0.4, y + s * 0.05);
-  ctx.stroke();
-  ctx.setLineDash([10, 12]);
-  ctx.beginPath();
-  ctx.moveTo(x - 10, y + 10);
-  ctx.bezierCurveTo(x - 120, y + 60, x - 60, y + 160, x - 200, y + 150);
+  small.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+  big.forEach(([px, py]) => ctx.lineTo(px, py));
   ctx.stroke();
   ctx.restore();
 }
 
-function bow(ctx: Ctx, cx: number, cy: number, s: number, color: string) {
-  ctx.fillStyle = color;
-  for (const dir of [-1, 1]) {
+/** Triện son vuông "Việt Phục" */
+function seal(ctx: Ctx, cx: number, cy: number, size: number, angle: number) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.fillStyle = "#C0182B";
+  roundRectPath(ctx, -size / 2, -size / 2, size, size, size * 0.1);
+  ctx.fill();
+  const f = `800 ${Math.round(size * 0.27)}px ${SERIF}`;
+  text(ctx, "VIỆT", 0, -size * 0.17, f, "#FFF1E0");
+  text(ctx, "PHỤC", 0, size * 0.19, f, "#FFF1E0");
+  ctx.restore();
+}
+
+/** Băng giấy cuộn hai đầu, chữ tiêu đề ở giữa */
+function scrollBanner(ctx: Ctx, cx: number, cy: number, label: string, color: string) {
+  const font = `italic 800 50px ${SERIF}`;
+  ctx.font = font;
+  const w = Math.max(520, ctx.measureText(label).width + 140);
+  const h = 96;
+  ctx.save();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = INK;
+  ctx.lineJoin = "round";
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = "#E7D3A6";
     ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.bezierCurveTo(cx + dir * s, cy - s * 0.7, cx + dir * s * 1.2, cy + s * 0.6, cx, cy);
+    ctx.ellipse(cx + side * (w / 2), cy, 18, h / 2 + 6, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + dir * s * 0.45, cy + s * 1.1);
-    ctx.lineTo(cx + dir * s * 0.15, cy + s * 1.05);
-    ctx.closePath();
-    ctx.fill();
+    ctx.stroke();
   }
+  ctx.fillStyle = "#FBF1DA";
+  ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+  ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+  ctx.restore();
+  text(ctx, label, cx, cy + 3, font, color);
+}
+
+/** Trang truyện tranh xưa: giấy dó, mây cuộn, khung tranh viền mực, nhân vật + bong bóng thoại */
+function folkComicPage(
+  ctx: Ctx,
+  img: HTMLImageElement,
+  info: FrameInfo,
+  o: { heading: string; quote: string; gender: "nam" | "nu"; accent: string }
+) {
+  const left = o.gender === "nam"; // nam đứng trái, nữ đứng phải
+  ctx.fillStyle = "#F1E2C0";
+  ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+  let seed = left ? 11 : 23;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  ctx.fillStyle = "rgba(120,90,50,0.12)";
+  for (let i = 0; i < 1600; i++) ctx.fillRect(rand() * FRAME_W, rand() * FRAME_H, 2 + rand() * 4, 1 + rand() * 2);
+  // viền trang: mực đậm + chỉ son
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = INK;
+  ctx.strokeRect(34, 34, FRAME_W - 68, FRAME_H - 68);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = o.accent;
+  ctx.strokeRect(50, 50, FRAME_W - 100, FRAME_H - 100);
+  cloudSwirl(ctx, 150, 120, 1.3, o.accent, 1);
+  cloudSwirl(ctx, FRAME_W - 150, 120, 1.3, o.accent, -1);
+  scrollBanner(ctx, 540, 128, o.heading, INK);
+  // ô tranh: bóng mực lệch kiểu truyện tranh + viền dày
+  const px = 110, py = 210, pw = 860, ph = 830;
+  ctx.fillStyle = INK;
+  ctx.fillRect(px + 16, py + 16, pw, ph);
+  ctx.fillStyle = "#FFFDF6";
+  ctx.fillRect(px, py, pw, ph);
+  drawPhoto(ctx, img, px + 14, py + 14, pw - 28, ph - 28, 0);
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = INK;
+  ctx.strokeRect(px, py, pw, ph);
+  // nhân vật đứng tràn ra mép dưới ô tranh, bong bóng thoại cạnh đầu
+  drawCharacter(ctx, o.gender, left ? 40 : FRAME_W - 340, 905, 300);
+  ctx.font = `800 38px ${SANS}`;
+  const bw = ctx.measureText(o.quote).width + 70;
+  comicBubble(ctx, left ? 290 : FRAME_W - 290 - bw, 930, o.quote, left);
+  // tên bộ đồ + dòng thương hiệu + ngày, triện son
+  const tx = left ? 1000 : 80;
+  const align: CanvasTextAlign = left ? "right" : "left";
+  text(ctx, info.title, tx, 1140, `italic 700 44px ${SERIF}`, o.accent, align);
+  text(ctx, BRAND, tx, 1200, `600 26px ${SANS}`, "#5B4632", align);
+  text(ctx, info.date, tx, 1246, `500 24px ${SANS}`, "#8A7458", align);
+  seal(ctx, left ? 410 : 670, 1196, 92, left ? -0.08 : 0.08); // giữa nhân vật và chữ
+}
+
+function matPhoto(ctx: Ctx, img: HTMLImageElement, x: number, y: number, w: number, h: number, mat: number, color: string) {
+  ctx.save();
+  ctx.shadowColor = "rgba(30,20,10,0.45)";
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 16;
+  ctx.fillStyle = color;
+  ctx.fillRect(x - mat, y - mat, w + mat * 2, h + mat * 2);
+  ctx.restore();
+  drawPhoto(ctx, img, x, y, w, h, 2, undefined, 0.75);
+}
+
+/** Dải nền bo tròn cho chữ */
+function ribbon(ctx: Ctx, cx: number, cy: number, w: number, h: number, color: string) {
+  ctx.save();
+  ctx.shadowColor = "rgba(60,40,10,0.3)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = color;
+  roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, 18);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Dãy đồi thấp nối các điểm [x, chiều cao] */
+function hills(ctx: Ctx, base: number, pts: number[][], color: string) {
+  ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(cx, cy, s * 0.2, 0, Math.PI * 2);
+  ctx.moveTo(0, base);
+  pts.forEach(([x, h], i) => {
+    const [px] = pts[Math.max(0, i - 1)];
+    ctx.quadraticCurveTo((px + x) / 2, base - h * 1.2, x, base - h * 0.6);
+  });
+  ctx.lineTo(FRAME_W, base + 40);
+  ctx.lineTo(0, base + 40);
+  ctx.closePath();
   ctx.fill();
 }
 
-// ---------- 12 khung, mỗi khung một tinh thần riêng ----------
+/** Lũy tre: cụm thân cong + tán lá */
+function bamboo(ctx: Ctx, x: number, base: number, dir: 1 | -1) {
+  ctx.save();
+  ctx.strokeStyle = "#3E4A22";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 7; i++) {
+    const bx = x + dir * i * 14;
+    ctx.beginPath();
+    ctx.moveTo(bx, base);
+    ctx.quadraticCurveTo(bx + dir * 20, base - 120, bx + dir * (40 + i * 6), base - 190 - (i % 3) * 25);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(52,66,28,0.9)";
+  for (let i = 0; i < 9; i++) {
+    ctx.beginPath();
+    ctx.ellipse(x + dir * (20 + i * 12), base - 150 - (i % 4) * 22, 48, 26, dir * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Cánh cò trắng đang bay */
+function stork(ctx: Ctx, x: number, y: number, s: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.strokeStyle = "#FFFDF6";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-46, -8);
+  ctx.quadraticCurveTo(-20, -30, 0, 0);
+  ctx.quadraticCurveTo(20, -30, 46, -8);
+  ctx.stroke();
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(28, 8);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Cánh cửa chớp gỗ xanh của phố Hội */
+function shutter(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  ctx.fillStyle = "#2F6B5E";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(10,40,30,0.55)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x + 6, y + 6, w - 12, h - 12);
+  for (let yy = y + 20; yy < y + h - 10; yy += 18) {
+    ctx.beginPath();
+    ctx.moveTo(x + 10, yy);
+    ctx.lineTo(x + w - 10, yy);
+    ctx.stroke();
+  }
+}
+
+/** Đèn lồng lụa Hội An, màu tùy chọn */
+function silkLantern(ctx: Ctx, cx: number, top: number, size: number, color: string) {
+  ctx.strokeStyle = "#2E180D";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx, top + size * 0.35);
+  ctx.stroke();
+  const y = top + size * 0.35;
+  glow(ctx, cx, y + size * 0.65, size * 1.3, "rgba(255,190,90,0.35)");
+  const body = ctx.createRadialGradient(cx - size * 0.15, y + size * 0.5, size * 0.05, cx, y + size * 0.65, size * 0.6);
+  body.addColorStop(0, "#FFF3C4");
+  body.addColorStop(0.35, color);
+  body.addColorStop(1, "#2A120A");
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.22, y);
+  ctx.bezierCurveTo(cx - size * 0.62, y + size * 0.3, cx - size * 0.62, y + size, cx - size * 0.22, y + size * 1.3);
+  ctx.lineTo(cx + size * 0.22, y + size * 1.3);
+  ctx.bezierCurveTo(cx + size * 0.62, y + size, cx + size * 0.62, y + size * 0.3, cx + size * 0.22, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#3B2213";
+  ctx.fillRect(cx - size * 0.25, y - 4, size * 0.5, 8);
+  ctx.fillRect(cx - size * 0.25, y + size * 1.28, size * 0.5, 8);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx + i * 5, y + size * 1.36);
+    ctx.lineTo(cx + i * 5, y + size * 1.75);
+    ctx.stroke();
+  }
+}
+
+/** Một lớp núi đá vôi Hạ Long: các khối cao, sườn dốc, đỉnh tròn */
+function karst(ctx: Ctx, base: number, scale: number, color: string, seed: number) {
+  let s = seed;
+  const rand = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  ctx.fillStyle = color;
+  let x = -40;
+  while (x < FRAME_W + 40) {
+    const w = (70 + rand() * 120) * scale;
+    const h = (120 + rand() * 260) * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, base);
+    ctx.bezierCurveTo(x + w * 0.05, base - h * 0.9, x + w * 0.2, base - h, x + w * 0.5, base - h);
+    ctx.bezierCurveTo(x + w * 0.8, base - h, x + w * 0.95, base - h * 0.85, x + w, base);
+    ctx.closePath();
+    ctx.fill();
+    x += w * (0.55 + rand() * 0.6);
+  }
+}
+
+/** Thuyền buồm nâu trên vịnh */
+function junkBoat(ctx: Ctx, x: number, y: number, s: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.fillStyle = "#2A1A10";
+  ctx.beginPath();
+  ctx.moveTo(-120, 0);
+  ctx.lineTo(120, 0);
+  ctx.lineTo(90, 30);
+  ctx.lineTo(-95, 30);
+  ctx.closePath();
+  ctx.fill();
+  const sail = (sx: number, w: number, h: number) => {
+    ctx.fillStyle = "#A9552C";
+    ctx.beginPath();
+    ctx.moveTo(sx, -6);
+    ctx.lineTo(sx, -h);
+    ctx.quadraticCurveTo(sx + w * 0.7, -h * 0.85, sx + w, -h * 0.55);
+    ctx.lineTo(sx + w * 0.85, -6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(60,25,10,0.6)";
+    ctx.lineWidth = 2;
+    for (let k = 1; k < 6; k++) {
+      ctx.beginPath();
+      ctx.moveTo(sx, -6 - ((h - 6) * k) / 6);
+      ctx.lineTo(sx + w * 0.9, -6 - ((h - 6) * k) / 6 * 0.75);
+      ctx.stroke();
+    }
+  };
+  sail(-90, 70, 150);
+  sail(-10, 80, 190);
+  sail(70, 50, 120);
+  ctx.globalAlpha = 0.25;
+  ctx.fillRect(-100, 32, 190, 8);
+  ctx.restore();
+}
+
+/** Tháp Rùa: 3 tầng, mái cong, cửa sáng đèn */
+function turtleTower(ctx: Ctx, cx: number, base: number) {
+  ctx.fillStyle = "#2B2F3D";
+  const tiers = [
+    [70, 46],
+    [54, 38],
+    [38, 30],
+  ];
+  let y = base;
+  tiers.forEach(([w, h]) => {
+    ctx.fillRect(cx - w / 2, y - h, w, h);
+    ctx.fillStyle = "rgba(255,206,130,0.85)";
+    ctx.fillRect(cx - 7, y - h + 10, 14, h - 18);
+    ctx.fillStyle = "#2B2F3D";
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 - 14, y - h + 4);
+    ctx.quadraticCurveTo(cx, y - h - 10, cx + w / 2 + 14, y - h + 4);
+    ctx.lineTo(cx + w / 2, y - h - 4);
+    ctx.lineTo(cx - w / 2, y - h - 4);
+    ctx.closePath();
+    ctx.fill();
+    y -= h + 4;
+  });
+  ctx.fillRect(cx - 4, y - 18, 8, 18);
+  glow(ctx, cx, base - 60, 120, "rgba(255,200,120,0.25)");
+}
+
+/** Cầu Thê Húc: cầu gỗ sơn đỏ cong vồng từ mép trái */
+function theHuc(ctx: Ctx) {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#C0262B";
+  ctx.lineWidth = 16;
+  ctx.beginPath();
+  ctx.moveTo(-20, 990);
+  ctx.quadraticCurveTo(220, 900, 470, 960);
+  ctx.stroke();
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(-20, 950);
+  ctx.quadraticCurveTo(220, 860, 470, 922);
+  ctx.stroke();
+  ctx.lineWidth = 5;
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12;
+    const x = -20 + t * 490;
+    const yTop = (1 - t) * (1 - t) * 950 + 2 * (1 - t) * t * 860 + t * t * 922;
+    const yBot = (1 - t) * (1 - t) * 990 + 2 * (1 - t) * t * 900 + t * t * 960;
+    ctx.beginPath();
+    ctx.moveTo(x, yTop);
+    ctx.lineTo(x, yBot);
+    ctx.stroke();
+    if (i % 3 === 0) glow(ctx, x, yTop - 6, 26, "rgba(255,210,140,0.7)");
+  }
+  // bóng cầu dưới nước
+  ctx.globalAlpha = 0.25;
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.moveTo(-20, 1030);
+  ctx.quadraticCurveTo(220, 1110, 470, 1010);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Cành liễu rủ từ góc trên */
+function willow(ctx: Ctx, x: number, dir: 1 | -1) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(92,128,62,0.85)";
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < 26; i++) {
+    const sx = x + dir * (i * 9);
+    const len = 220 + ((i * 53) % 260);
+    ctx.beginPath();
+    ctx.moveTo(sx, -10);
+    ctx.quadraticCurveTo(sx + dir * 30, len * 0.5, sx + dir * (10 + (i % 5) * 6), len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Cây dừa: thân cong + tàu lá */
+function palm(ctx: Ctx, x: number, base: number, s: number, dir: 1 | -1) {
+  ctx.save();
+  ctx.translate(x, base);
+  ctx.scale(s * dir, s);
+  ctx.strokeStyle = "#6B4A2B";
+  ctx.lineWidth = 16;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(40, -220, 90, -420);
+  ctx.stroke();
+  ctx.strokeStyle = "#2F5A2A";
+  ctx.lineWidth = 7;
+  for (const [ang, len] of [[-150, 210], [-120, 230], [-80, 200], [-40, 220], [-10, 200], [20, 170], [-175, 170]]) {
+    const r = (ang * Math.PI) / 180;
+    const ex = 90 + Math.cos(r) * len;
+    const ey = -420 + Math.sin(r) * len * 0.6 + 60;
+    ctx.beginPath();
+    ctx.moveTo(90, -420);
+    ctx.quadraticCurveTo(90 + Math.cos(r) * len * 0.5, -420 + Math.sin(r) * len * 0.5 - 30, ex, ey);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Xuồng ba lá có người chèo đội nón lá */
+function sampan(ctx: Ctx, x: number, y: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#3A2617";
+  ctx.beginPath();
+  ctx.moveTo(-160, -10);
+  ctx.quadraticCurveTo(0, 30, 160, -20);
+  ctx.lineTo(130, 10);
+  ctx.quadraticCurveTo(0, 40, -135, 14);
+  ctx.closePath();
+  ctx.fill();
+  // người chèo
+  ctx.fillStyle = "#2A3B4A";
+  ctx.fillRect(40, -90, 26, 80);
+  ctx.fillStyle = "#E9D3A0";
+  ctx.beginPath();
+  ctx.moveTo(53, -128);
+  ctx.lineTo(10, -88);
+  ctx.lineTo(96, -88);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#5A3B1E";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(70, -70);
+  ctx.lineTo(150, 40);
+  ctx.stroke();
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = "#0E2A28";
+  ctx.beginPath();
+  ctx.ellipse(0, 36, 150, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 export const FRAMES: FrameDef[] = [
+  {
+    id: "dong-lua",
+    name: "Đồng lúa quê nhà",
+    draw(ctx, img, info) {
+      // trời chiều vàng ấm
+      const sky = ctx.createLinearGradient(0, 0, 0, 760);
+      sky.addColorStop(0, "#E9A35E");
+      sky.addColorStop(0.55, "#F6D29A");
+      sky.addColorStop(1, "#FBE8C6");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      glow(ctx, 820, 600, 320, "rgba(255,232,170,0.9)");
+      ctx.fillStyle = "#FFF3D2";
+      ctx.beginPath();
+      ctx.arc(820, 600, 66, 0, Math.PI * 2);
+      ctx.fill();
+      // núi xa
+      hills(ctx, 690, [[0, 40], [220, 85], [430, 50], [640, 95], [860, 55], [1080, 80]], "rgba(150,140,95,0.45)");
+      hills(ctx, 725, [[0, 30], [180, 55], [380, 25], [560, 60], [800, 30], [1080, 50]], "rgba(118,128,70,0.55)");
+      // ruộng lúa: các dải xa nhỏ, gần to, xanh lẫn vàng
+      const bands = ["#B9A445", "#9DA23C", "#C9B24E", "#8E9A36", "#D2B955", "#A0A53E", "#C8AE48", "#93A03A"];
+      let y = 730;
+      bands.forEach((c, i) => {
+        const h = 22 + i * i * 6;
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.moveTo(0, y + 6);
+        ctx.quadraticCurveTo(540, y - 8, FRAME_W, y + 4);
+        ctx.lineTo(FRAME_W, y + h + 4);
+        ctx.quadraticCurveTo(540, y + h - 10, 0, y + h + 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(70,80,25,0.25)";
+        ctx.lineWidth = 1.5;
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + 6 + (h * k) / 3);
+          ctx.quadraticCurveTo(540, y - 8 + (h * k) / 3, FRAME_W, y + 4 + (h * k) / 3);
+          ctx.stroke();
+        }
+        y += h;
+      });
+      // lũy tre hai bên chân trời
+      bamboo(ctx, 70, 760, 1);
+      bamboo(ctx, 1010, 770, -1);
+      // cánh cò
+      [[160, 300, 1], [250, 250, 0.8], [330, 330, 0.9], [610, 210, 0.7], [690, 260, 0.6]].forEach(([x, yy, s]) => stork(ctx, x, yy, s));
+
+      matPhoto(ctx, img, 200, 140, 680, 860, 18, "#FFF8EA");
+      ribbon(ctx, 540, 1150, 640, 120, "rgba(255,248,232,0.94)");
+      text(ctx, info.title, 540, 1135, `italic 700 46px ${SERIF}`, "#5A3A12");
+      spaced(ctx, `ĐỒNG LÚA QUÊ NHÀ · ${info.date}`, 540, 1185, `600 17px ${SANS}`, "#8A6A3A", 4);
+      text(ctx, BRAND, 540, 1290, `600 22px ${SANS}`, "rgba(70,50,20,0.75)");
+      grain(ctx, 0.05);
+    },
+  },
+  {
+    id: "hoi-an",
+    name: "Phố cổ Hội An",
+    draw(ctx, img, info) {
+      // tường vàng phố Hội, loang vết vôi cũ
+      const wall = ctx.createLinearGradient(0, 0, FRAME_W, FRAME_H);
+      wall.addColorStop(0, "#EBBB4C");
+      wall.addColorStop(1, "#D6962C");
+      ctx.fillStyle = wall;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      let seed = 23;
+      const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 90; i++) {
+        ctx.fillStyle = rand() > 0.5 ? "rgba(255,240,200,0.08)" : "rgba(120,70,20,0.06)";
+        ctx.beginPath();
+        ctx.ellipse(rand() * FRAME_W, rand() * FRAME_H, 30 + rand() * 120, 20 + rand() * 70, rand() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // mái ngói âm dương
+      ctx.fillStyle = "#4E2A18";
+      ctx.fillRect(0, 0, FRAME_W, 120);
+      ctx.strokeStyle = "#7A4428";
+      ctx.lineWidth = 6;
+      for (let row = 0; row < 3; row++) {
+        for (let x = (row % 2) * 30; x < FRAME_W + 60; x += 60) {
+          ctx.beginPath();
+          ctx.arc(x, 28 + row * 32, 26, 0, Math.PI);
+          ctx.stroke();
+        }
+      }
+      ctx.fillStyle = "#2E180D";
+      ctx.fillRect(0, 118, FRAME_W, 14);
+
+      // khung cửa sổ gỗ + hai cánh chớp mở
+      shutter(ctx, 92, 210, 92, 860);
+      shutter(ctx, 896, 210, 92, 860);
+      ctx.save();
+      ctx.shadowColor = "rgba(60,30,10,0.5)";
+      ctx.shadowBlur = 40;
+      ctx.shadowOffsetY = 16;
+      ctx.fillStyle = "#4A2A17";
+      ctx.fillRect(176, 196, 728, 888);
+      ctx.restore();
+      drawPhoto(ctx, img, 204, 224, 672, 832, 0, undefined, 0.75);
+      ctx.strokeStyle = "#2E180D";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(204, 224, 672, 832);
+
+      // đèn lồng lụa nhiều màu treo dưới mái
+      silkLantern(ctx, 150, 132, 70, "#D8453A");
+      silkLantern(ctx, 330, 132, 56, "#E9B44C");
+      silkLantern(ctx, 750, 132, 56, "#7B3FA0");
+      silkLantern(ctx, 930, 132, 70, "#2A8A80");
+
+      // biển gỗ
+      ctx.save();
+      ctx.shadowColor = "rgba(40,20,5,0.45)";
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 8;
+      ctx.fillStyle = "#3B2213";
+      roundRectPath(ctx, 230, 1130, 620, 130, 10);
+      ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = goldFill(ctx, 1130, 1260);
+      ctx.lineWidth = 3;
+      roundRectPath(ctx, 242, 1142, 596, 106, 6);
+      ctx.stroke();
+      spaced(ctx, `PHỐ HỘI · ${info.date}`, 540, 1172, `700 17px ${SANS}`, "#E9B44C", 5);
+      text(ctx, info.title, 540, 1218, `italic 700 40px ${SERIF}`, "#FFF1C9");
+      text(ctx, BRAND, 540, 1305, `600 22px ${SANS}`, "rgba(70,35,10,0.8)");
+      grain(ctx, 0.05);
+    },
+  },
+  {
+    id: "ha-long",
+    name: "Vịnh Hạ Long",
+    draw(ctx, img, info) {
+      const sky = ctx.createLinearGradient(0, 0, 0, 1000);
+      sky.addColorStop(0, "#BFD8E0");
+      sky.addColorStop(1, "#F1E6D2");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      glow(ctx, 260, 360, 300, "rgba(255,240,210,0.7)");
+      // ba lớp núi đá vôi, xa nhạt gần đậm, có sương
+      karst(ctx, 1000, 0.55, "#A9BCC2", 5);
+      karst(ctx, 1010, 0.75, "#7E979E", 11);
+      karst(ctx, 1020, 1, "#4D676D", 17);
+      const mist = ctx.createLinearGradient(0, 860, 0, 1010);
+      mist.addColorStop(0, "rgba(241,230,210,0)");
+      mist.addColorStop(1, "rgba(241,230,210,0.75)");
+      ctx.fillStyle = mist;
+      ctx.fillRect(0, 860, FRAME_W, 150);
+      // mặt biển
+      const sea = ctx.createLinearGradient(0, 1000, 0, FRAME_H);
+      sea.addColorStop(0, "#86A9AE");
+      sea.addColorStop(1, "#2F5560");
+      ctx.fillStyle = sea;
+      ctx.fillRect(0, 1000, FRAME_W, FRAME_H - 1000);
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 26; i++) {
+        const yy = 1015 + i * 13;
+        const x0 = (i * 137) % 900;
+        ctx.beginPath();
+        ctx.moveTo(x0, yy);
+        ctx.lineTo(x0 + 60 + (i % 4) * 30, yy);
+        ctx.stroke();
+      }
+      junkBoat(ctx, 860, 1140, 1);
+
+      matPhoto(ctx, img, 210, 110, 660, 820, 14, "#FFFFFF");
+      text(ctx, info.title, 380, 1195, `italic 700 44px ${SERIF}`, "#FFFFFF");
+      spaced(ctx, `VỊNH HẠ LONG · ${info.date}`, 380, 1245, `600 17px ${SANS}`, "rgba(255,255,255,0.8)", 5);
+      text(ctx, BRAND, 540, 1310, `600 20px ${SANS}`, "rgba(255,255,255,0.7)");
+      grain(ctx, 0.05);
+    },
+  },
+  {
+    id: "ho-guom",
+    name: "Hồ Gươm",
+    draw(ctx, img, info) {
+      // trời chạng vạng
+      const sky = ctx.createLinearGradient(0, 0, 0, 900);
+      sky.addColorStop(0, "#1B2847");
+      sky.addColorStop(0.6, "#4A4F7A");
+      sky.addColorStop(1, "#E7A46A");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      // mặt hồ
+      const lake = ctx.createLinearGradient(0, 900, 0, FRAME_H);
+      lake.addColorStop(0, "#5B6A7A");
+      lake.addColorStop(1, "#16222B");
+      ctx.fillStyle = lake;
+      ctx.fillRect(0, 900, FRAME_W, FRAME_H - 900);
+      // Tháp Rùa trên gò giữa hồ
+      ctx.fillStyle = "#1E2430";
+      ctx.beginPath();
+      ctx.ellipse(780, 935, 150, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      turtleTower(ctx, 780, 930);
+      [[700, 925, 40], [860, 925, 46], [655, 932, 28]].forEach(([x, yy, r]) => {
+        ctx.beginPath();
+        ctx.ellipse(x, yy - r * 0.6, r * 0.9, r, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      // phản chiếu ánh đèn trên mặt nước
+      ctx.strokeStyle = "rgba(255,200,120,0.35)";
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 9; i++) {
+        ctx.beginPath();
+        ctx.moveTo(760 - i * 4, 960 + i * 22);
+        ctx.lineTo(800 + i * 4, 960 + i * 22);
+        ctx.stroke();
+      }
+      // cầu Thê Húc đỏ cong từ mép trái
+      theHuc(ctx);
+      // liễu rủ hai góc trên
+      willow(ctx, 0, 1);
+      willow(ctx, FRAME_W, -1);
+
+      matPhoto(ctx, img, 230, 90, 620, 760, 14, "#FFF8EA");
+      glowText(ctx, info.title, 540, 1215, `italic 700 44px ${SERIF}`, "#FFF1C9", "rgba(255,190,110,0.6)", 18);
+      spaced(ctx, `HỒ GƯƠM · ${info.date}`, 540, 1263, `600 17px ${SANS}`, "rgba(255,241,201,0.8)", 5);
+      text(ctx, BRAND, 540, 1310, `600 20px ${SANS}`, "rgba(255,241,201,0.65)");
+      grain(ctx, 0.06);
+    },
+  },
+  {
+    id: "mien-tay",
+    name: "Sông nước miền Tây",
+    draw(ctx, img, info) {
+      const sky = ctx.createLinearGradient(0, 0, 0, 900);
+      sky.addColorStop(0, "#9FD2C6");
+      sky.addColorStop(1, "#F6E6BC");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      glow(ctx, 540, 820, 380, "rgba(255,240,190,0.6)");
+      // bờ xa với hàng dừa nước
+      ctx.fillStyle = "#4F7A45";
+      ctx.beginPath();
+      ctx.moveTo(0, 900);
+      for (let x = 0; x <= FRAME_W; x += 40) ctx.lineTo(x, 880 - Math.abs(Math.sin(x * 0.02)) * 24);
+      ctx.lineTo(FRAME_W, 920);
+      ctx.lineTo(0, 920);
+      ctx.fill();
+      // sông
+      const river = ctx.createLinearGradient(0, 905, 0, FRAME_H);
+      river.addColorStop(0, "#7FB3A6");
+      river.addColorStop(1, "#2E6A64");
+      ctx.fillStyle = river;
+      ctx.fillRect(0, 905, FRAME_W, FRAME_H - 905);
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 18; i++) {
+        const yy = 930 + i * 22;
+        const x0 = (i * 211) % 980;
+        ctx.beginPath();
+        ctx.moveTo(x0, yy);
+        ctx.quadraticCurveTo(x0 + 40, yy - 5, x0 + 90, yy);
+        ctx.stroke();
+      }
+      // dừa hai bên
+      palm(ctx, 60, 1000, 1, 1);
+      palm(ctx, 150, 960, 0.75, 1);
+      palm(ctx, 1030, 990, 1, -1);
+      // xuồng ba lá có người đội nón lá
+      sampan(ctx, 300, 1180);
+      // sen ở góc dưới
+      ctx.fillStyle = "#3E7D3A";
+      [[930, 1290, 90], [1030, 1250, 70], [60, 1300, 70]].forEach(([x, yy, r]) => {
+        ctx.beginPath();
+        ctx.ellipse(x, yy, r, r * 0.35, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      lotus(ctx, 960, 1240, 64, "#EFA3B8", "#F4D35E");
+      lotus(ctx, 70, 1265, 46, "#F3B7C6", "#F4D35E");
+
+      // khung tre
+      ctx.save();
+      ctx.shadowColor = "rgba(30,50,30,0.45)";
+      ctx.shadowBlur = 36;
+      ctx.shadowOffsetY = 14;
+      ctx.fillStyle = "#D9BE85";
+      ctx.fillRect(196, 96, 688, 828);
+      ctx.restore();
+      ctx.strokeStyle = "#A9874A";
+      ctx.lineWidth = 3;
+      for (const yy of [260, 520, 780]) {
+        ctx.beginPath();
+        ctx.moveTo(196, yy);
+        ctx.lineTo(212, yy);
+        ctx.moveTo(868, yy);
+        ctx.lineTo(884, yy);
+        ctx.stroke();
+      }
+      drawPhoto(ctx, img, 214, 114, 652, 792, 4, undefined, 0.75);
+      text(ctx, info.title, 640, 1090, `italic 700 42px ${SERIF}`, "#FFFFFF");
+      spaced(ctx, `MIỀN TÂY SÔNG NƯỚC · ${info.date}`, 640, 1138, `600 16px ${SANS}`, "rgba(255,255,255,0.85)", 4);
+      text(ctx, BRAND, 640, 1318, `600 20px ${SANS}`, "rgba(255,255,255,0.75)");
+      grain(ctx, 0.05);
+    },
+  },
+  {
+    id: "man-anh-rong",
+    name: "Màn ảnh rộng",
+    draw(ctx, img, info) {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      const bar = 170;
+      drawPhoto(ctx, img, 0, bar, FRAME_W, FRAME_H - bar * 2, 0, undefined, 1);
+      anamorphicFlare(ctx, 760, 330, 900, "rgba(110,170,255,0.55)");
+      // phụ đề vàng có viền đen như phim chiếu rạp
+      const sub = `“Hôm nay mình mặc ${info.title.charAt(0).toLowerCase()}${info.title.slice(1)}.”`;
+      ctx.save();
+      const font = `600 38px ${SANS}`;
+      const lines = wrap(ctx, sub, font, 900).slice(0, 2);
+      ctx.font = font;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.fillStyle = "#FFF2A8";
+      lines.forEach((l, i) => {
+        const y = FRAME_H - bar - 70 - (lines.length - 1 - i) * 50;
+        ctx.strokeText(l, 540, y);
+        ctx.fillText(l, 540, y);
+      });
+      ctx.restore();
+      spaced(ctx, "VIỆT PHỤC REMIX", 60, 85, `700 20px ${SANS}`, "rgba(245,235,221,0.8)", 6, "left");
+      text(ctx, info.date, FRAME_W - 60, 85, `600 22px ${SANS}`, "rgba(245,235,221,0.6)", "right");
+      text(ctx, "00:12:47:09", 60, FRAME_H - 85, `600 22px ui-monospace, monospace`, "rgba(233,180,76,0.85)", "left");
+      spaced(ctx, "CẢNH 07 · ĐÊM HỘI", 540, FRAME_H - 85, `600 18px ${SANS}`, "rgba(245,235,221,0.6)", 5);
+      text(ctx, BRAND, FRAME_W - 60, FRAME_H - 85, `500 18px ${SANS}`, "rgba(245,235,221,0.5)", "right");
+      grain(ctx, 0.06);
+    },
+  },
+  {
+    id: "phim-35mm",
+    name: "Phim 35mm",
+    draw(ctx, img, info) {
+      // bàn đèn soi phim
+      const bg = ctx.createRadialGradient(540, 600, 100, 540, 675, 950);
+      bg.addColorStop(0, "#FBF6EC");
+      bg.addColorStop(1, "#DCCDB3");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      grain(ctx, 0.04);
+
+      ctx.save();
+      ctx.translate(540, 640);
+      ctx.rotate(-0.035);
+      ctx.shadowColor = "rgba(40,25,10,0.45)";
+      ctx.shadowBlur = 40;
+      ctx.shadowOffsetY = 18;
+      ctx.fillStyle = "#1B110A";
+      ctx.fillRect(-410, -900, 820, 1800);
+      ctx.shadowColor = "transparent";
+      // ánh cam của đế phim ở hai mép
+      ctx.fillStyle = "rgba(196,98,30,0.35)";
+      ctx.fillRect(-410, -900, 70, 1800);
+      ctx.fillRect(340, -900, 70, 1800);
+      // lỗ răng cưa: lộ màu bàn đèn phía sau
+      ctx.fillStyle = "#F4ECDD";
+      for (let y = -890; y < 900; y += 56) {
+        roundRectPath(ctx, -392, y, 34, 26, 5);
+        ctx.fill();
+        roundRectPath(ctx, 358, y, 34, 26, 5);
+        ctx.fill();
+      }
+      // khung trên và dưới chỉ thấy một phần, khung chính ở giữa
+      ctx.globalAlpha = 0.5;
+      drawPhoto(ctx, img, -320, -1290, 640, 800, 4, undefined, 1);
+      drawPhoto(ctx, img, -320, 410, 640, 800, 4, undefined, 1);
+      ctx.globalAlpha = 1;
+      drawPhoto(ctx, img, -320, -440, 640, 800, 4, undefined, 1);
+      // ký hiệu in trên mép phim
+      ctx.save();
+      ctx.rotate(-Math.PI / 2);
+      ["VIETPHUC 400", "▶ 12", "12A", "▶ 13", "VIETPHUC 400", "▶ 14"].forEach((t, i) =>
+        text(ctx, t, 760 - i * 300, -375, `700 16px ui-monospace, monospace`, "#E0892B")
+      );
+      ctx.restore();
+      ctx.restore();
+
+      washiTape(ctx, 760, 1170, -0.12, "rgba(233,180,76,0.85)");
+      ctx.save();
+      ctx.translate(735, 1210);
+      ctx.rotate(-0.05);
+      ctx.shadowColor = "rgba(40,25,10,0.3)";
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = "#FFFDF7";
+      ctx.fillRect(-260, -45, 520, 115);
+      ctx.shadowColor = "transparent";
+      const title = wrap(ctx, info.title, `italic 700 34px ${SERIF}`, 480)[0];
+      text(ctx, title, 0, 0, `italic 700 34px ${SERIF}`, "#2B2118");
+      text(ctx, `${info.date} · ${BRAND}`, 0, 42, `500 17px ${SANS}`, "#8A7A6A");
+      ctx.restore();
+    },
+  },
+  {
+    id: "son-mai",
+    name: "Lụa & sơn mài",
+    draw(ctx, img, info) {
+      // nền sơn mài đỏ son sâu, có ánh và vụn vàng dát
+      const bg = ctx.createRadialGradient(380, 300, 50, 540, 675, 1100);
+      bg.addColorStop(0, "#6E1A16");
+      bg.addColorStop(0.55, "#3A0B0A");
+      bg.addColorStop(1, "#140303");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      let seed = 7;
+      const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 160; i++) {
+        ctx.fillStyle = `rgba(233,180,76,${0.08 + rand() * 0.35})`;
+        ctx.save();
+        ctx.translate(rand() * FRAME_W, rand() * FRAME_H);
+        ctx.rotate(rand() * Math.PI);
+        const sz = 2 + rand() * 7;
+        ctx.fillRect(-sz / 2, -sz / 2, sz, sz * (0.4 + rand()));
+        ctx.restore();
+      }
+      // khung gỗ sơn mài viền vàng
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.6)";
+      ctx.shadowBlur = 50;
+      ctx.shadowOffsetY = 20;
+      ctx.fillStyle = "#1E0606";
+      ctx.fillRect(110, 90, 860, 1000);
+      ctx.restore();
+      ctx.strokeStyle = goldFill(ctx, 90, 1090);
+      ctx.lineWidth = 6;
+      ctx.strokeRect(122, 102, 836, 976);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(140, 120, 800, 940);
+      // nền lụa có ánh chéo
+      const silk = ctx.createLinearGradient(160, 140, 920, 1040);
+      ["#F4E6CC", "#FFF6E4", "#EAD7B4", "#FBEFD8", "#E6D0A8"].forEach((c, i, a) => silk.addColorStop(i / (a.length - 1), c));
+      ctx.fillStyle = silk;
+      ctx.fillRect(160, 140, 760, 900);
+      drawPhoto(ctx, img, 200, 180, 680, 820, 2, undefined, 0.9);
+      ctx.strokeStyle = "rgba(200,144,47,0.7)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(200, 180, 680, 820);
+      [[140, 120], [940, 120], [140, 1060], [940, 1060]].forEach(([x, y]) => lotus(ctx, x, y, 26, "#E9B44C", "#FFF1C9"));
+
+      ctx.save();
+      ctx.shadowColor = "rgba(233,180,76,0.4)";
+      ctx.shadowBlur = 20;
+      text(ctx, info.title, 540, 1170, `italic 700 56px ${SERIF}`, goldFill(ctx, 1140, 1200));
+      ctx.restore();
+      spaced(ctx, `${BRAND.toUpperCase()} · ${info.date}`, 540, 1245, `600 18px ${SANS}`, "rgba(246,217,138,0.75)", 4);
+      grain(ctx, 0.05);
+    },
+  },
+  {
+    id: "trien-lam",
+    name: "Phòng triển lãm",
+    draw(ctx, img, info) {
+      // tường vữa ấm, đèn rọi từ trần xuống
+      ctx.fillStyle = "#BDB3A6";
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      const spot = ctx.createRadialGradient(540, 420, 40, 540, 560, 820);
+      spot.addColorStop(0, "rgba(255,244,222,0.95)");
+      spot.addColorStop(0.5, "rgba(236,226,210,0.55)");
+      spot.addColorStop(1, "rgba(60,52,44,0.55)");
+      ctx.fillStyle = spot;
+      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+      grain(ctx, 0.05);
+      // đèn rọi gắn trần
+      ctx.fillStyle = "#1A1A1C";
+      ctx.fillRect(500, 0, 80, 14);
+      roundRectPath(ctx, 516, 10, 48, 36, 10);
+      ctx.fill();
+      glow(ctx, 540, 46, 60, "rgba(255,240,200,0.8)");
+
+      // khung tranh: viền gỗ đen + giấy bồi trắng, bóng đổ xuống dưới theo hướng đèn
+      ctx.save();
+      ctx.shadowColor = "rgba(30,22,14,0.55)";
+      ctx.shadowBlur = 60;
+      ctx.shadowOffsetY = 34;
+      ctx.fillStyle = "#17120E";
+      ctx.fillRect(210, 150, 660, 860);
+      ctx.restore();
+      ctx.fillStyle = "#F7F3EC";
+      ctx.fillRect(228, 168, 624, 824);
+      const bevel = ctx.createLinearGradient(0, 168, 0, 992);
+      bevel.addColorStop(0, "rgba(0,0,0,0.08)");
+      bevel.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bevel;
+      ctx.fillRect(228, 168, 624, 824);
+      drawPhoto(ctx, img, 290, 230, 500, 700, 0, undefined, 0.8);
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(290, 230, 500, 700);
+
+      // bảng tên bằng đồng
+      ctx.save();
+      ctx.shadowColor = "rgba(30,22,14,0.4)";
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 6;
+      const brass = ctx.createLinearGradient(330, 1080, 750, 1200);
+      brass.addColorStop(0, "#B8893E");
+      brass.addColorStop(0.5, "#F2D38A");
+      brass.addColorStop(1, "#9C7030");
+      ctx.fillStyle = brass;
+      roundRectPath(ctx, 300, 1075, 480, 140, 6);
+      ctx.fill();
+      ctx.restore();
+      const titleLines = wrap(ctx, info.title, `italic 700 30px ${SERIF}`, 430).slice(0, 2);
+      titleLines.forEach((l, i) => text(ctx, l, 540, 1112 + i * 34, `italic 700 30px ${SERIF}`, "#3A2810"));
+      text(ctx, `Việt Phục Remix, ${info.date.slice(-4)}`, 540, 1112 + titleLines.length * 34 + 4, `600 17px ${SANS}`, "#4A3416");
+      text(ctx, "Ảnh thử đồ AI, in trên giấy mỹ thuật", 540, 1112 + titleLines.length * 34 + 30, `500 15px ${SANS}`, "#5A4220");
+      text(ctx, BRAND, 540, 1290, `500 20px ${SANS}`, "rgba(60,48,36,0.7)");
+    },
+  },
   {
     id: "polaroid",
     name: "Polaroid dán tường",
@@ -446,45 +1485,6 @@ export const FRAMES: FrameDef[] = [
       text(ctx, info.title.toUpperCase(), 540, 1135, `700 40px ${SERIF}`, "#F1DDAE");
       text(ctx, BRAND, 540, 1200, `500 28px ${SANS}`, "#C8A15A");
       grain(ctx, 0.05);
-    },
-  },
-  {
-    id: "rap-phim",
-    name: "Rạp chiếu phim",
-    draw(ctx, img, info) {
-      ctx.fillStyle = "#0B0B0D";
-      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
-      glow(ctx, 540, 0, 900, "rgba(255,230,180,0.18)");
-      // bảng clapperboard phía trên
-      ctx.fillStyle = "#F2EDE4";
-      ctx.fillRect(120, 70, 840, 70);
-      ctx.fillStyle = "#0B0B0D";
-      for (let x = 120; x < 960; x += 84) {
-        ctx.beginPath();
-        ctx.moveTo(x, 70);
-        ctx.lineTo(x + 42, 70);
-        ctx.lineTo(x + 20, 140);
-        ctx.lineTo(x - 22, 140);
-        ctx.fill();
-      }
-      text(ctx, "SCENE 01", 120, 185, `700 30px ${SANS}`, "#E0A526", "left");
-      text(ctx, `TAKE ${info.date}`, 960, 185, `700 30px ${SANS}`, "#E0A526", "right");
-      // cuộn phim hai bên
-      ctx.fillStyle = "#1C1C20";
-      ctx.fillRect(0, 0, 90, FRAME_H);
-      ctx.fillRect(FRAME_W - 90, 0, 90, FRAME_H);
-      ctx.fillStyle = "#F2EDE4";
-      for (let y = 20; y < FRAME_H; y += 64) {
-        roundRectPath(ctx, 26, y, 38, 30, 6);
-        ctx.fill();
-        roundRectPath(ctx, FRAME_W - 64, y, 38, 30, 6);
-        ctx.fill();
-      }
-      drawPhoto(ctx, img, 120, 220, 840, 900, 6);
-      vignette(ctx, 0.5);
-      glowText(ctx, info.title, 540, 1185, `italic 700 50px ${SERIF}`, "#FFFFFF", "rgba(255,210,140,0.7)", 18);
-      text(ctx, `A VIỆT PHỤC REMIX PICTURE · ${BRAND}`, 540, 1255, `600 22px ${SANS}`, "#B8B0A4");
-      grain(ctx, 0.07);
     },
   },
   {
@@ -617,16 +1617,7 @@ export const FRAMES: FrameDef[] = [
       drawPhoto(ctx, img, 140, 140, 800, 920);
       text(ctx, info.title, 540, 1140, `italic 700 46px ${SERIF}`, "#B83227");
       text(ctx, BRAND, 540, 1200, `600 28px ${SANS}`, "#1F6F6A");
-      // triện son
-      ctx.save();
-      ctx.translate(900, 1180);
-      ctx.rotate(-0.08);
-      ctx.fillStyle = "#C0182B";
-      roundRectPath(ctx, -52, -52, 104, 104, 10);
-      ctx.fill();
-      text(ctx, "VIỆT", 0, -18, `800 28px ${SERIF}`, "#FFF1E0");
-      text(ctx, "PHỤC", 0, 20, `800 28px ${SERIF}`, "#FFF1E0");
-      ctx.restore();
+      seal(ctx, 900, 1180, 104, -0.08);
     },
   },
   {
@@ -693,84 +1684,17 @@ export const FRAMES: FrameDef[] = [
     },
   },
   {
-    id: "nhat-ky-nam-sinh",
-    name: "Nhật ký nam sinh",
+    id: "truyen-tranh-nam",
+    name: "Truyện tranh xưa · Nam",
     draw(ctx, img, info) {
-      ctx.fillStyle = "#F8F6EF";
-      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
-      // giấy vở kẻ dòng + lề đỏ
-      ctx.strokeStyle = "rgba(90,130,200,0.28)";
-      ctx.lineWidth = 2;
-      for (let y = 60; y < FRAME_H; y += 46) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(FRAME_W, y);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = "rgba(216,69,58,0.5)";
-      ctx.beginPath();
-      ctx.moveTo(110, 0);
-      ctx.lineTo(110, FRAME_H);
-      ctx.stroke();
-      text(ctx, "Nhật ký lớp mình ✎", 150, 100, `italic 700 50px ${SERIF}`, "#2F4A8A", "left");
-      paperPlane(ctx, 880, 90, 110, "#2F4A8A");
-      ctx.save();
-      ctx.translate(560, 610);
-      ctx.rotate(0.03);
-      ctx.shadowColor = "rgba(40,50,90,0.3)";
-      ctx.shadowBlur = 30;
-      ctx.shadowOffsetY = 12;
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(-370, -440, 740, 900);
-      ctx.shadowColor = "transparent";
-      drawPhoto(ctx, img, -340, -410, 680, 780, 4);
-      ctx.restore();
-      washiTape(ctx, 560, 170, -0.05, "rgba(90,130,200,0.7)");
-      for (const [x, y, r] of [[990, 420, 26], [150, 380, 20], [1000, 760, 18]] as const) star(ctx, x, y, r, "#E9B44C");
-      drawCharacter(ctx, "nam", -10, 900, 350);
-      speechBubble(ctx, 250, 960, "Chất quá trời!", "#2F4A8A", "#FFFFFF");
-      text(ctx, info.title, 1010, 1150, `italic 700 44px ${SERIF}`, "#2F4A8A", "right");
-      text(ctx, BRAND, 1010, 1215, `600 26px ${SANS}`, "#5A6F9E", "right");
-      text(ctx, info.date, 1010, 1265, `500 24px ${SANS}`, "#8A98B8", "right");
+      folkComicPage(ctx, img, info, { heading: "Chuyện chàng thư sinh", quote: "Bảnh ra phết!", gender: "nam", accent: "#2F5C8C" });
     },
   },
   {
-    id: "nhat-ky-nu-sinh",
-    name: "Nhật ký nữ sinh",
+    id: "truyen-tranh-nu",
+    name: "Truyện tranh xưa · Nữ",
     draw(ctx, img, info) {
-      const g = ctx.createLinearGradient(0, 0, 0, FRAME_H);
-      g.addColorStop(0, "#FFE3EE");
-      g.addColorStop(1, "#FFC9DD");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, FRAME_W, FRAME_H);
-      // chấm bi
-      ctx.fillStyle = "rgba(255,255,255,0.6)";
-      for (let y = 30; y < FRAME_H; y += 70) {
-        for (let x = (y / 70) % 2 ? 30 : 65; x < FRAME_W; x += 70) {
-          ctx.beginPath();
-          ctx.arc(x, y, 7, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      bow(ctx, 540, 95, 70, "#FF5FA2");
-      text(ctx, "Thanh xuân rực rỡ", 540, 205, `italic 800 50px ${SERIF}`, "#C2185B");
-      ctx.save();
-      ctx.shadowColor = "rgba(194,24,91,0.3)";
-      ctx.shadowBlur = 36;
-      ctx.fillStyle = "#FFFFFF";
-      roundRectPath(ctx, 150, 260, 780, 820, 48);
-      ctx.fill();
-      ctx.restore();
-      drawPhoto(ctx, img, 172, 282, 736, 776, 34);
-      heart(ctx, 130, 330, 50, "#FF5FA2");
-      heart(ctx, 960, 260, 38, "#FF8FC0");
-      heart(ctx, 980, 700, 30, "#FF5FA2");
-      star(ctx, 110, 760, 26, "#FFC94D");
-      drawCharacter(ctx, "nu", 740, 900, 350);
-      speechBubble(ctx, 470, 960, "Xinh xỉu luôn!", "#FF5FA2", "#FFFFFF", false);
-      text(ctx, info.title, 90, 1160, `italic 700 44px ${SERIF}`, "#C2185B", "left");
-      text(ctx, BRAND, 90, 1222, `600 26px ${SANS}`, "#D0588E", "left");
-      text(ctx, info.date, 90, 1270, `500 24px ${SANS}`, "#E08AB0", "left");
+      folkComicPage(ctx, img, info, { heading: "Chuyện cô thôn nữ", quote: "Duyên quá đi thôi!", gender: "nu", accent: "#B83227" });
     },
   },
 ];

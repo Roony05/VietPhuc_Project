@@ -3,10 +3,13 @@ import { useApp } from "../state/AppContext";
 import { outfits } from "../data/outfits";
 import { garmentTypeLabels, genderLabels } from "../data/labels";
 import { OutfitCard } from "../components/OutfitCard";
+import { FlowHeader } from "../components/Flow";
 import { Chip, PageTitle } from "../components/ui";
-import { GarmentType, Gender, Outfit } from "../types";
+import { ColorTag, GarmentType, Gender, Outfit } from "../types";
 
 const GARMENTS: GarmentType[] = ["ao_dai", "ao_dai_cach_tan", "ao_tu_than", "ao_ngu_than", "ao_ba_ba", "ao_tac"];
+
+const SHOWCASE_COLORS: ColorTag[] = ["do", "xanh_lam", "vang", "hong_sen", "xanh_la", "tim", "cam", "den", "trang", "nau", "be"];
 
 export const GalleryScreen: React.FC = () => {
   const { goTo, filters, updateFilters, setSelectedOutfitId } = useApp();
@@ -17,9 +20,14 @@ export const GalleryScreen: React.FC = () => {
     (o) =>
       (!gender || o.gender === gender || o.gender === "unisex") && (!garment || o.garmentType === garment)
   );
-  const families = [...new Set(list.map((item) => item.familyId))].map((id) => {
+  const families = [...new Set(list.map((item) => item.familyId))].map((id, i) => {
     const variants = list.filter((item) => item.familyId === id);
-    const preferred = variants.find((item) => filters.colors.includes(item.colors[0])) || variants.find((item) => item.colors[0] === "trang") || variants[0];
+    // ưu tiên màu người dùng thích; không có thì mỗi kiểu áo khoe một màu khác nhau cho thư viện bớt đơn điệu
+    const showcase = SHOWCASE_COLORS[i % SHOWCASE_COLORS.length];
+    const preferred =
+      variants.find((item) => filters.colors.includes(item.colors[0])) ||
+      variants.find((item) => item.colors[0] === showcase) ||
+      variants[0];
     return { preferred, variants };
   });
   // chỉ hiện loại trang phục đang có trong thư viện
@@ -32,9 +40,10 @@ export const GalleryScreen: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <>
+      <FlowHeader current={1} back={() => (window.history.length > 1 ? window.history.back() : goTo("home"))} />
+    <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
       <PageTitle
-        eyebrow="Bước 2 / 3"
         title="Thư viện Việt phục"
         description="Chọn một bộ bạn thích để mặc thử lên ảnh của mình."
       />
@@ -73,5 +82,6 @@ export const GalleryScreen: React.FC = () => {
         <p className="text-muc-nhat py-10 text-center">Chưa có bộ nào thuộc nhóm này.</p>
       )}
     </div>
+    </>
   );
 };

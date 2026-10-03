@@ -1,7 +1,4 @@
-import { OOTD_CATEGORY } from "../config";
-import { GarmentType } from "../types";
-
-/** Server đã cấu hình những gì (HF_TOKEN cho ghép ảnh, GEMINI_API_KEY cho lời khuyên) */
+/** Server đã cấu hình những gì (MODAL_TRYON_* cho ghép ảnh, GEMINI_API_KEY cho phần chữ) */
 export async function getAiStatus(): Promise<{ tryOn: boolean; tips: boolean }> {
   try {
     const res = await fetch("/api/status");
@@ -12,11 +9,14 @@ export async function getAiStatus(): Promise<{ tryOn: boolean; tips: boolean }> 
   }
 }
 
-/** Gửi ảnh người + ảnh bộ đồ lên server để ghép bằng OOTDiffusion. Trả về data URL ảnh kết quả. */
+/** original: thay đồ, giữ nền ảnh gốc · white: tách người ra nền trắng */
+export type TryOnBackground = "original" | "white";
+
+/** Gửi ảnh người + ảnh bộ đồ lên server để ghép. Trả về data URL ảnh kết quả. */
 export async function tryOnOutfit(params: {
   personDataUrl: string;
   outfitDataUrl: string;
-  garmentType: GarmentType;
+  background: TryOnBackground;
 }): Promise<string> {
   let res: Response;
   try {
@@ -26,7 +26,7 @@ export async function tryOnOutfit(params: {
       body: JSON.stringify({
         personDataUrl: params.personDataUrl,
         outfitDataUrl: params.outfitDataUrl,
-        category: OOTD_CATEGORY[params.garmentType],
+        background: params.background,
       }),
     });
   } catch {

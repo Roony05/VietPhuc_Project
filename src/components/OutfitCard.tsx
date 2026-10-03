@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Outfit } from "../types";
 import { colorLabels, garmentTypeLabels } from "../data/labels";
 import { ImageWithFallback } from "./ImageWithFallback";
-import { Tag } from "./ui";
 import { ArrowRight, Check } from "lucide-react";
 
 interface OutfitCardProps {
@@ -30,7 +29,6 @@ export const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, variants, rank, 
           {rank ? (
             <span className="w-9 h-9 rounded-full bg-gradient-to-br from-[#fff1c7] to-nghe text-[#1a120c] font-display font-bold flex items-center justify-center shadow-lg shadow-black/40">{rank}</span>
           ) : <span />}
-          {selected.imageLabel === "minh_hoa_AI" && <Tag>Minh họa AI</Tag>}
         </div>
       </button>
 
@@ -51,7 +49,7 @@ export const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, variants, rank, 
                 title={colorLabels[color].label}
                 aria-label={`Chọn màu ${colorLabels[color].label}`}
                 aria-pressed={selected.id === item.id}
-                className={`w-6 h-6 rounded-full border-2 cursor-pointer ${selected.id === item.id ? "border-son ring-2 ring-son/30" : "border-vien"}`}
+                className={`w-6 h-6 rounded-full border-2 cursor-pointer ${selected.id === item.id ? "border-son ring-2 ring-son/30" : "border-white/25"}`}
                 style={{ backgroundColor: colorLabels[color].hex }}
               />
             );

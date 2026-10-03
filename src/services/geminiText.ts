@@ -30,7 +30,7 @@ export interface PersonalityTip {
 }
 
 /**
- * Nhờ Gemini "đoán" bí mật tính cách vui nhộn từ bộ lọc + bộ đồ đã chọn (qua server /api/personality).
+ * Nhờ Gemini viết lời khen "phong thái khi diện bộ này" từ bộ lọc + bộ đồ đã chọn (qua server /api/personality).
  * Server luôn trả về nội dung; chỉ lỗi khi mất kết nối.
  */
 export async function getPersonality(params: {
@@ -49,6 +49,7 @@ export async function getPersonality(params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  if (!res.ok) throw new Error("Không soạn được bí mật tính cách.");
+  if (!res.ok) throw new Error("Không soạn được lời khen phong thái.");
   return res.json();
 }
+
