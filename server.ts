@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { catvtonTryOn, getModalConfig, TryOnError } from "./catvton";
+import { getHfToken, ootdTryOn } from "./ootd";
 import { generatePersonality, PersonalityInput } from "./personality";
 import { suggestLook } from "./lookSuggest";
 
@@ -24,12 +25,16 @@ const apiKey = process.env.GEMINI_API_KEY?.trim();
 const hasApiKey = Boolean(apiKey) && apiKey !== "MY_GEMINI_API_KEY" && apiKey !== "DAN_API_KEY_VAO_DAY";
 const ai = new GoogleGenAI({ apiKey: hasApiKey ? apiKey : "missing" });
 
-// Ghép ảnh: CatVTON đã fine-tune Việt phục, chạy trên Modal
-const hasTryOn = Boolean(getModalConfig());
+// Ghép ảnh: ưu tiên CatVTON đã fine-tune Việt phục trên Modal.
+// Có HF_TOKEN thì OOTDiffusion trên Hugging Face làm dự phòng khi Modal lỗi (hết credits, hết lượt, máy chủ lỗi).
+const hasModal = Boolean(getModalConfig());
+const hasHf = Boolean(getHfToken());
+const hasTryOn = hasModal || hasHf;
 
 if (!hasApiKey) console.warn("[Server] Chưa có GEMINI_API_KEY — phần phong thái dùng câu soạn sẵn.");
-if (hasTryOn) console.log("[Server] Ghép ảnh bằng CatVTON Việt phục trên Modal.");
-else console.warn("[Server] Chưa có MODAL_TRYON_* — nút Ghép ảnh sẽ báo lỗi.");
+if (hasModal) console.log(`[Server] Ghép ảnh bằng CatVTON Việt phục trên Modal${hasHf ? ", dự phòng OOTDiffusion trên Hugging Face" : ""}.`);
+else if (hasHf) console.log("[Server] Chưa có MODAL_TRYON_* — ghép ảnh bằng OOTDiffusion trên Hugging Face.");
+else console.warn("[Server] Chưa có MODAL_TRYON_* hoặc HF_TOKEN — nút Ghép ảnh sẽ báo lỗi.");
 
 // Cho giao diện biết server đã cấu hình những gì
 app.get("/api/status", (_req, res) => {
@@ -46,19 +51,37 @@ app.post("/api/try-on", async (req, res) => {
   }
   if (!hasTryOn) {
     return res.status(500).json({
-      error: "Máy chủ chưa cấu hình dịch vụ ghép ảnh. Hãy điền MODAL_TRYON_URL / KEY / SECRET vào file .env rồi khởi động lại.",
+      error: "Máy chủ chưa cấu hình dịch vụ ghép ảnh. Hãy điền MODAL_TRYON_URL / KEY / SECRET (hoặc HF_TOKEN) vào file .env rồi khởi động lại.",
     });
   }
 
+  // Hugging Face: model chung, không có tùy chọn nền trắng. Việt phục đều là đồ dài toàn thân nên dùng "Dress".
+  const viaHf = () => ootdTryOn({ personDataUrl, garmentDataUrl: outfitDataUrl, category: "Dress" });
+
   try {
-    // Việt phục đều là đồ dài toàn thân nên luôn thay cả bộ ("overall")
-    const dataUrl = await catvtonTryOn({
-      personDataUrl,
-      garmentDataUrl: outfitDataUrl,
-      maskType: "overall",
-      background: background === "white" ? "white" : "original",
-    });
-    console.log(`[Server /api/try-on] Xong sau ${Date.now() - startTime}ms`);
+    let dataUrl: string;
+    let engine = "Modal";
+    if (!hasModal) {
+      dataUrl = await viaHf();
+      engine = "Hugging Face";
+    } else {
+      try {
+        // Việt phục đều là đồ dài toàn thân nên luôn thay cả bộ ("overall")
+        dataUrl = await catvtonTryOn({
+          personDataUrl,
+          garmentDataUrl: outfitDataUrl,
+          maskType: "overall",
+          background: background === "white" ? "white" : "original",
+        });
+      } catch (modalErr: any) {
+        // lỗi do dữ liệu gửi lên (400) thì đổi máy cũng không khác
+        if (!hasHf || (modalErr instanceof TryOnError && modalErr.status === 400)) throw modalErr;
+        console.warn(`[Server /api/try-on] Modal lỗi (${modalErr?.message}), chuyển sang Hugging Face.`);
+        dataUrl = await viaHf();
+        engine = "Hugging Face (dự phòng)";
+      }
+    }
+    console.log(`[Server /api/try-on] Xong sau ${Date.now() - startTime}ms (${engine})`);
     return res.json({ dataUrl });
   } catch (err: any) {
     console.error("[Server /api/try-on] Lỗi:", err?.message);

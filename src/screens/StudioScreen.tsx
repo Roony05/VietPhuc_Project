@@ -155,8 +155,8 @@ export const StudioScreen: React.FC = () => {
 
       {status && !status.tryOn && (
         <div className="mb-6 p-4 rounded-2xl bg-nghe-nhat border border-nghe/30 text-sm text-muc">
-          Máy chủ chưa cấu hình dịch vụ ghép ảnh. Hãy điền <strong>MODAL_TRYON_URL / KEY / SECRET</strong> vào file{" "}
-          <code>.env</code> rồi khởi động lại.
+          Máy chủ chưa cấu hình dịch vụ ghép ảnh. Hãy điền <strong>MODAL_TRYON_URL / KEY / SECRET</strong> (hoặc{" "}
+          <strong>HF_TOKEN</strong>) vào file <code>.env</code> rồi khởi động lại.
         </div>
       )}
 

@@ -13,7 +13,8 @@ Cần có Node.js 22.12 trở lên; nên dùng Node.js 24 LTS.
    npm ci
    ```
 2. Sao chép `.env.example` thành `.env`, rồi điền:
-   - `MODAL_TRYON_URL`, `MODAL_TRYON_KEY`, `MODAL_TRYON_SECRET`: API thử đồ CatVTON đã fine-tune cho Việt phục, chạy trên Modal (xem `train_model_VTTon/deploy/README.md`).
+   - `MODAL_TRYON_URL`, `MODAL_TRYON_KEY`, `MODAL_TRYON_SECRET`: API thử đồ CatVTON đã fine-tune cho Việt phục, chạy trên Modal (nhờ Roony đưa key).
+   - `HF_TOKEN` (không bắt buộc): token Hugging Face quyền Read (https://huggingface.co/settings/tokens). Dùng làm **dự phòng**: khi Modal lỗi (hết credits, hết lượt, máy chủ lỗi) app tự ghép bằng OOTDiffusion trên Hugging Face. Model này không fine-tune cho Việt phục, không tách nền, không có nền trắng, và quota GPU miễn phí chỉ đủ vài ảnh mỗi ngày.
    - `GEMINI_API_KEY`: Gemini API key (https://aistudio.google.com/apikey). Dùng để chọn lookbook hợp gu và viết lời khen "Phong thái khi diện bộ này".
 3. Chạy:
    ```
@@ -21,15 +22,15 @@ Cần có Node.js 22.12 trở lên; nên dùng Node.js 24 LTS.
    ```
 4. Mở http://localhost:3000
 
-Thiếu `MODAL_TRYON_*` thì nút Ghép ảnh bị khóa và app hiện thông báo. Thiếu `GEMINI_API_KEY` thì hai phần dùng Gemini trả câu soạn sẵn. Các phần khác vẫn dùng bình thường.
+Thiếu cả `MODAL_TRYON_*` lẫn `HF_TOKEN` thì nút Ghép ảnh bị khóa và app hiện thông báo. Thiếu `GEMINI_API_KEY` thì hai phần dùng Gemini trả câu soạn sẵn. Các phần khác vẫn dùng bình thường.
 
 ## Lệnh khác
 
-| Lệnh | Tác dụng |
-|---|---|
-| `npm run lint` | Kiểm tra lỗi TypeScript |
-| `npm run build` | Build giao diện vào `dist/` |
-| `npm start` | Chạy bản production (cần `npm run build` trước) |
+| Lệnh             | Tác dụng                                            |
+| ----------------- | ----------------------------------------------------- |
+| `npm run lint`  | Kiểm tra lỗi TypeScript                             |
+| `npm run build` | Build giao diện vào`dist/`                        |
+| `npm start`     | Chạy bản production (cần`npm run build` trước) |
 
 ## Luồng thử đồ (5 bước)
 
@@ -52,6 +53,7 @@ Chọn gu (`#/chon-gu`) → Chọn bộ (`#/goi-y` hoặc `#/thu-vien`) → **Ph
 ## Gợi ý theo thời tiết
 
 Bước Chọn gu có mục **Mặc ngày nào, ở đâu?** (không bắt buộc, 10 tỉnh thành trong `src/logic/weather.ts`):
+
 - Trong 16 ngày tới: dự báo thật từ Open-Meteo (miễn phí, không cần key, gọi thẳng từ trình duyệt).
 - Xa hơn: **ước tính theo mùa** = trung bình cùng thời điểm (±3 ngày) của 3 năm trước, ghi rõ không phải dự báo.
 - Thời tiết cộng/trừ điểm kiểu áo (nóng: ưu tiên áo ít lớp; lạnh: áo ngũ thân, áo tấc), trừ điểm áo trắng/be khi dễ mưa, và hiện lời khuyên ở màn Gợi ý.
@@ -81,8 +83,9 @@ Thẻ lịch sử ở trang Kết quả lấy từ `src/data/history.ts`: mỗi 
 
 ## Cấu trúc chính
 
-- `server.ts`: server Express, giữ key. Endpoint: `/api/status`, `/api/try-on` (CatVTON trên Modal), `/api/personality` và `/api/suggest-look` (Gemini).
+- `server.ts`: server Express, giữ key. Endpoint: `/api/status`, `/api/try-on` (CatVTON trên Modal, dự phòng OOTDiffusion trên Hugging Face), `/api/personality` và `/api/suggest-look` (Gemini).
 - `catvton.ts`: gọi API CatVTON Việt phục trên Modal, gửi kèm `background` (`original` hoặc `white`).
+- `ootd.ts`: gọi Space OOTDiffusion trên Hugging Face, chỉ dùng khi Modal lỗi hoặc chưa cấu hình (`OOTD_SPACE` để đổi Space, mặc định `levihsu/OOTDiffusion`).
 - `geminiClient.ts`, `personality.ts`, `lookSuggest.ts`: gọi Gemini, prompt và câu dự phòng.
 - `src/data/`: catalog bộ đồ, phụ kiện, lookbook mẫu, lịch sử trang phục, câu dân gian, người mẫu và nhãn tiếng Việt.
 - `src/logic/`: gợi ý, thời tiết, quy tắc phụ kiện, xử lý ảnh, khung ảnh, lưu lookbook và hồ sơ (code thường, không dùng AI).
@@ -93,4 +96,4 @@ Thẻ lịch sử ở trang Kết quả lấy từ `src/data/history.ts`: mỗi 
 
 ## GitHub và Google AI Studio
 
-Xem [hướng dẫn import và publish](DEPLOY_AI_STUDIO.md). Khi triển khai phải chạy cả server Express bằng `npm start` sau `npm run build`; `npm run preview` chỉ phục vụ giao diện. Cổng lấy từ biến môi trường `PORT`, mặc định `3000` khi chạy trên máy.
+Import repo vào Google AI Studio Build, điền các biến ở trên vào **Settings → Secrets**, rồi Publish. Khi triển khai phải chạy cả server Express bằng `npm start` sau `npm run build`; `npm run preview` chỉ phục vụ giao diện. Cổng lấy từ biến môi trường `PORT`, mặc định `3000` khi chạy trên máy.
